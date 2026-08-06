@@ -95,8 +95,8 @@ const foldedCount = computed(() => {
 function slotFor(boatId) {
   if (!slotByBoatId.has(boatId)) {
     const used = new Set(slotByBoatId.values());
-    const free = PALETTE.findIndex((_, i) => !used.has(i));
-    slotByBoatId.set(boatId, free === -1 ? slotByBoatId.size % PALETTE.length : free);
+    const free = PALETTES.light.findIndex((_, i) => !used.has(i));
+    slotByBoatId.set(boatId, free === -1 ? slotByBoatId.size % slotCount() : free);
   }
   return slotByBoatId.get(boatId);
 }
