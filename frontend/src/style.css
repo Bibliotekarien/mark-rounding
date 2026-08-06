@@ -1,7 +1,28 @@
-/* Plain CSS with variables, gribranker style. Mobile-first: the report
-   view is used on phones out on the water. */
+/* Plain CSS with variables. Three themes stamped as data-theme on <html>:
+   light (default), dark, and contrast — a super-high-contrast mode
+   (pure black on white, thick borders, bolder type) for the committee
+   working in direct sunlight out on the water. Mobile-first. */
 
 :root {
+  /* Light — default */
+  --surface-0: #eef2f7;
+  --surface-1: #ffffff;
+  --surface-2: #e3eaf3;
+  --text-primary: #16222f;
+  --text-secondary: #55677c;
+  --border: #c3cfdd;
+  --accent: #0a69a8;
+  --accent-strong: #0a69a8;
+  --on-accent: #ffffff;
+  --ok: #157a3a;
+  --warn: #8a6100;
+  --danger: #b3261e;
+  --radius: 10px;
+  --border-width: 1px;
+  --base-weight: 400;
+}
+
+:root[data-theme="dark"] {
   --surface-0: #0e1726;
   --surface-1: #16233a;
   --surface-2: #1f3050;
@@ -10,10 +31,28 @@
   --border: #2c4166;
   --accent: #38bdf8;
   --accent-strong: #0ea5e9;
+  --on-accent: #04121f;
   --ok: #4ade80;
   --warn: #facc15;
   --danger: #f87171;
-  --radius: 10px;
+}
+
+:root[data-theme="contrast"] {
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --border: #000000;
+  --accent: #0000c8;
+  --accent-strong: #000000;
+  --on-accent: #ffffff;
+  --ok: #005c20;
+  --warn: #6b4a00;
+  --danger: #a80000;
+  --radius: 6px;
+  --border-width: 2px;
+  --base-weight: 500;
 }
 
 * {
@@ -25,7 +64,12 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--surface-0);
   color: var(--text-primary);
+  font-weight: var(--base-weight);
   -webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme="contrast"] body {
+  font-size: 17px;
 }
 
 a {
@@ -34,6 +78,10 @@ a {
 }
 
 a:hover {
+  text-decoration: underline;
+}
+
+:root[data-theme="contrast"] a {
   text-decoration: underline;
 }
 
@@ -54,7 +102,7 @@ h1, h2, h3 {
   gap: 0.75rem;
   padding: 0.7rem 1rem;
   background: var(--surface-1);
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 .topbar .brand {
@@ -69,7 +117,7 @@ h1, h2, h3 {
 
 .card {
   background: var(--surface-1);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
   padding: 1rem;
   margin-bottom: 1rem;
@@ -82,7 +130,8 @@ h1, h2, h3 {
 
 button {
   font: inherit;
-  border: 1px solid var(--border);
+  font-weight: var(--base-weight);
+  border: var(--border-width) solid var(--border);
   background: var(--surface-2);
   color: var(--text-primary);
   border-radius: var(--radius);
@@ -97,7 +146,7 @@ button:hover {
 button.primary {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
-  color: #04121f;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -114,9 +163,9 @@ button:disabled {
 
 input, select, textarea {
   font: inherit;
-  background: var(--surface-0);
+  background: var(--surface-1);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   border-radius: var(--radius);
   padding: 0.5rem 0.65rem;
   width: 100%;
@@ -147,7 +196,7 @@ table {
 th, td {
   text-align: left;
   padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
 
 th {
@@ -164,7 +213,7 @@ th {
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   color: var(--text-secondary);
 }
 
@@ -193,7 +242,7 @@ th {
 .selector-row button.selected {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
-  color: #04121f;
+  color: var(--on-accent);
   font-weight: 700;
 }
 
@@ -210,6 +259,11 @@ th {
   font-weight: 700;
   min-height: 64px;
   line-height: 1.25;
+}
+
+:root[data-theme="contrast"] .boat-grid button {
+  font-size: 1.25rem;
+  min-height: 76px;
 }
 
 .boat-grid button.tagged {
@@ -229,7 +283,7 @@ th {
   align-items: center;
   gap: 0.6rem;
   padding: 0.35rem 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
   list-style: none;
 }
 
@@ -251,7 +305,7 @@ th {
 .map {
   height: 320px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: var(--border-width) solid var(--border);
   overflow: hidden;
 }
 
