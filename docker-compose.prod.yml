@@ -1,0 +1,80 @@
+# Produktion (standalone, ingen merge med annan compose-fil):
+#
+#   internet ──▶ edge-Caddy (egen stack, /opt/bibliotekarien-platform/edge)
+#                    │  joinar markrounding_proxy som external network
+#                    │
+#        /api/* ────┼──────────────▶ markrounding-web:8000
+#        övrigt ────▶ markrounding-anubis:8923 ──▶ markrounding-web:8000
+#                                        (PoW-gate för HTML-trafik)
+#                    markrounding-web serverar /api + byggd Vue-SPA
+#                            │
+#                            ▼
+#                    markrounding-data (named volume, SQLite)
+#
+# /api/* går förbi Anubis (XHR-klienter kan inte lösa browser-PoW) — därför
+# är backendens login-rate-limit och de hemliga rapport-tokens som skyddar
+# skriv-endpoints load-bearing, inte defense-in-depth.
+# Inga host-portar publiceras — edge når containrarna via nätverket.
+# Bring-up: sudo /opt/markrounding/app/scripts/deploy.sh
+name: markrounding
+
+services:
+  web:
+    build: .
+    image: markrounding:latest
+    container_name: markrounding-web
+    networks: [proxy]
+    volumes:
+      - markrounding-data:/app/data
+    environment:
+      MARKROUNDING_ENV: production
+      MARKROUNDING_DB_PATH: /app/data/markrounding.sqlite
+      MARKROUNDING_SECRET: ${MARKROUNDING_SECRET:?Sätt MARKROUNDING_SECRET i .env}
+      MARKROUNDING_ADMIN_PASSWORD_HASH: ${MARKROUNDING_ADMIN_PASSWORD_HASH:?Sätt MARKROUNDING_ADMIN_PASSWORD_HASH i .env}
+      # Server-side Matomo — tomma värden stänger av trackingen.
+      MARKROUNDING_MATOMO_URL: ${MARKROUNDING_MATOMO_URL:-}
+      MARKROUNDING_MATOMO_SITE_ID: ${MARKROUNDING_MATOMO_SITE_ID:-}
+      MARKROUNDING_MATOMO_TOKEN: ${MARKROUNDING_MATOMO_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  anubis:
+    image: ghcr.io/techarohq/anubis:latest
+    container_name: markrounding-anubis
+    depends_on: [web]
+    networks: [proxy]
+    environment:
+      BIND: ":8923"
+      TARGET: "http://web:8000"
+      DIFFICULTY: "${ANUBIS_DIFFICULTY:-4}"
+      SERVE_ROBOTS_TXT: "true"
+      POLICY_FNAME: /data/cfg/botPolicy.yaml
+      OG_PASSTHROUGH: "true"
+      OG_EXPIRY_TIME: 24h
+      # Måste matcha det publika hostnamnet, annars accepteras inte
+      # clearance-cookien (samma fallgrop som i tOPAC).
+      COOKIE_DOMAIN: ${ANUBIS_COOKIE_DOMAIN:?Sätt ANUBIS_COOKIE_DOMAIN i .env}
+      METRICS_BIND: ":9090"
+      CHALLENGE_TITLE: "Mark-rounding"
+    volumes:
+      - ./anubis/botPolicy.yaml:/data/cfg/botPolicy.yaml:ro
+    healthcheck:
+      test: ["CMD", "anubis", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  # Docker names this `markrounding_proxy` (project `markrounding` + key
+  # `proxy`). Edge-Caddy joins it as an external network. Keep the top-level
+  # `name:` so the network name stays stable.
+  proxy:
+    driver: bridge
+
+volumes:
+  markrounding-data:
