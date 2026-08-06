@@ -2,7 +2,7 @@
 // Public regatta page: navigate between races, follow the ongoing one.
 // Polls every 15 s so spectators see roundings as they are reported.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "../api.js";
 import {
   boatCodeLabel,
@@ -16,6 +16,7 @@ import StartCountdown from "../components/StartCountdown.vue";
 import WeatherBox from "../components/WeatherBox.vue";
 
 const route = useRoute();
+const router = useRouter();
 const regatta = ref(null);
 const raceDetail = ref(null);
 const weather = ref(null);
@@ -43,8 +44,14 @@ const boatsWithRoundings = computed(() => {
 async function loadRegatta() {
   regatta.value = await api.regatta(route.params.slug);
   if (selectedRace.value == null) {
-    // Default to the ongoing race, else the first not-finished, else the last.
     const races = regatta.value.races;
+    // A ?race= deep link wins; otherwise default to the ongoing race,
+    // else the first not-finished, else the last.
+    const fromQuery = Number(route.query.race);
+    if (races.some((r) => r.number === fromQuery)) {
+      selectedRace.value = fromQuery;
+      return;
+    }
     const ongoing = races.find((r) => r.status === "ongoing");
     const next = races.find((r) => r.status !== "finished");
     selectedRace.value = (ongoing || next || races[races.length - 1])?.number ?? null;
@@ -82,7 +89,13 @@ onMounted(async () => {
 
 onBeforeUnmount(() => clearInterval(pollTimer));
 
-watch(selectedRace, loadRace);
+watch(selectedRace, (value) => {
+  loadRace();
+  // Mirror the selection in the URL so any race is deep-linkable.
+  if (value != null && String(value) !== route.query.race) {
+    router.replace({ query: { ...route.query, race: value } });
+  }
+});
 </script>
 
 <template>

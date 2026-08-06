@@ -9,6 +9,8 @@ const error = ref("");
 
 const today = new Date().toISOString().slice(0, 10);
 
+const liveNow = computed(() => regattas.value.filter((r) => r.live_race != null));
+
 const upcoming = computed(() =>
   regattas.value
     .filter((r) => !r.end_date || r.end_date >= today)
@@ -40,6 +42,20 @@ function statusText(regatta) {
   <main class="page">
     <h1>Kappseglingar</h1>
     <p class="error" v-if="error">{{ error }}</p>
+
+    <router-link
+      v-for="regatta in liveNow"
+      :key="regatta.id"
+      class="live-banner"
+      :to="`/regatta/${regatta.slug}?race=${regatta.live_race}`"
+    >
+      <span class="live-dot" aria-hidden="true"></span>
+      <span>
+        <strong>Pågår nu:</strong> {{ regatta.name }} — Race {{ regatta.live_race }}
+      </span>
+      <span class="spacer" style="flex: 1"></span>
+      <span>Följ live →</span>
+    </router-link>
 
     <RegattaMap :regattas="regattas" />
 

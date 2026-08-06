@@ -231,6 +231,43 @@ th {
   border-color: var(--warn);
 }
 
+/* "right now" banner on the start page — the primary entry into a race */
+.live-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--ok);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.live-banner:hover {
+  text-decoration: none;
+  border-color: var(--accent);
+}
+
+.live-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--ok);
+  flex-shrink: 0;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 /* race / mark selector rows */
 .selector-row {
   display: flex;
