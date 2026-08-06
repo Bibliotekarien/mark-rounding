@@ -124,6 +124,15 @@ inom en laddad sida syns inte — bara sidladdningar.
   skyddas av den hemliga tokenen.
 - `ANUBIS_COOKIE_DOMAIN` i `.env` måste matcha det publika hostnamnet,
   annars accepteras inte clearance-cookien (känd tOPAC-fallgrop).
+- **`$` i `.env`-värden måste escapas som `$$`** — lösenordshashen
+  (`pbkdf2$260000$…`) tolkas annars av compose som variabelreferenser:
+  varningen `The "…" variable is not set` betyder att hashen blev tom i
+  containern. Se kommentaren i `.env.template`.
+- **Skapa aldrig `markrounding_proxy` för hand** (`docker network create`).
+  Compose vägrar ta över ett nät utan sina labels (`incorrect label
+  com.docker.compose.network`). Rätt ordning: app-stacken skapar nätet
+  (deploy.sh) → sedan `edge-recreate`. Har nätet skapats manuellt: koppla
+  loss ev. containrar, `docker network rm markrounding_proxy`, deploya om.
 - Named volume `markrounding-data` innehåller SQLite-filen med alla
   rundningar. Nattlig snapshot till `/opt/markrounding/backups`
   (14 dagars rotation) via `markrounding-backup.timer`.
