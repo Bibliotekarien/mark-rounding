@@ -33,13 +33,34 @@ const props = defineProps({
 });
 
 const MAX_SERIES = 8;
-// Dark-mode categorical slots, adjacent-pair validated vs surface #16233a.
-const PALETTE = [
-  "#3987e5", "#d95926", "#199e70", "#c98500",
-  "#d55181", "#008300", "#9085e9", "#e66767",
-];
-const GRID = "rgba(157, 176, 204, 0.15)";
-const INK = "#9db0cc";
+// Categorical slots validated per theme surface (dataviz palette): the
+// dark set against #16233a, the light set against #ffffff (three light
+// slots sit under 3:1 contrast — covered by the table view + legend).
+// The contrast theme reuses the light set on its white surface.
+const PALETTES = {
+  dark: [
+    "#3987e5", "#d95926", "#199e70", "#c98500",
+    "#d55181", "#008300", "#9085e9", "#e66767",
+  ],
+  light: [
+    "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
+    "#e87ba4", "#008300", "#4a3aa7", "#e34948",
+  ],
+};
+
+function themeColors() {
+  const styles = getComputedStyle(document.documentElement);
+  const theme = document.documentElement.dataset.theme || "light";
+  return {
+    palette: PALETTES[theme === "dark" ? "dark" : "light"],
+    ink: styles.getPropertyValue("--text-secondary").trim(),
+    grid:
+      theme === "dark"
+        ? "rgba(157, 176, 204, 0.15)"
+        : "rgba(60, 80, 105, 0.18)",
+    surface: styles.getPropertyValue("--surface-1").trim(),
+  };
+}
 
 const canvas = ref(null);
 const showTable = ref(false);
@@ -80,9 +101,13 @@ function slotFor(boatId) {
   return slotByBoatId.get(boatId);
 }
 
-function buildDatasets() {
+function slotCount() {
+  return PALETTES.light.length;
+}
+
+function buildDatasets(colors) {
   return shownBoats.value.map((boat) => {
-    const color = PALETTE[slotFor(boat.id)];
+    const color = colors.palette[slotFor(boat.id) % slotCount()];
     const perMark = gapByBoatAndMark.value.get(boat.id);
     return {
       label: boat.sail_number,
@@ -94,7 +119,7 @@ function buildDatasets() {
       pointHoverRadius: 5,
       pointHitRadius: 8,
       // 2px surface ring so overlapping markers stay separable
-      pointBorderColor: "#16233a",
+      pointBorderColor: colors.surface,
       pointBorderWidth: 2,
       spanGaps: true,
     };
@@ -103,9 +128,14 @@ function buildDatasets() {
 
 function render() {
   if (!canvas.value) return;
+  const colors = themeColors();
+  const { ink: INK, grid: GRID } = colors;
   const config = {
     type: "line",
-    data: { labels: props.marks.map((m) => m.name), datasets: buildDatasets() },
+    data: {
+      labels: props.marks.map((m) => m.name),
+      datasets: buildDatasets(colors),
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -139,15 +169,20 @@ function render() {
   };
   if (chart) {
     chart.data = config.data;
+    chart.options = config.options;
     chart.update();
   } else {
     chart = new Chart(canvas.value, config);
   }
 }
 
-onMounted(render);
+onMounted(() => {
+  render();
+  window.addEventListener("markrounding:theme", render);
+});
 watch(() => [props.marks, props.leaderboard], render, { deep: true });
 onBeforeUnmount(() => {
+  window.removeEventListener("markrounding:theme", render);
   if (chart) chart.destroy();
 });
 </script>

@@ -14,6 +14,7 @@ import {
   raceStatusLabel,
 } from "../format.js";
 import StartCountdown from "../components/StartCountdown.vue";
+import ThemeToggle from "../components/ThemeToggle.vue";
 
 const route = useRoute();
 const token = route.params.token;
@@ -347,7 +348,10 @@ async function shorten() {
   <main class="page" v-if="overview">
     <div class="regatta-list-item">
       <h1 style="font-size: 1.2rem">{{ overview.name }}</h1>
-      <span class="muted">Rapportering</span>
+      <span style="display: inline-flex; align-items: center; gap: 0.6rem">
+        <ThemeToggle />
+        <span class="muted">Rapportering</span>
+      </span>
     </div>
     <p class="error" v-if="error">{{ error }}</p>
 
