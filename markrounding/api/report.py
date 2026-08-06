@@ -20,8 +20,10 @@ from .deps import regatta_by_token
 from .models import BoatIn
 from .models import BoatPatch
 from .models import BoatStatusIn
+from .models import CourseIn
+from .models import CoursePatch
 from .models import LogNoteIn
-from .models import MarksIn
+from .models import RaceCourseIn
 from .models import RaceStatusIn
 from .models import RoundingIn
 from .models import StartSequenceIn
@@ -66,8 +68,8 @@ def add_rounding(
     regatta = regatta_by_token(conn, token)
     race = _race(conn, regatta["id"], number)
     mark = conn.execute(
-        "SELECT id FROM marks WHERE id = ? AND regatta_id = ?",
-        (body.mark_id, regatta["id"]),
+        "SELECT id FROM marks WHERE id = ? AND course_id = ?",
+        (body.mark_id, race["course_id"]),
     ).fetchone()
     boat = conn.execute(
         "SELECT id FROM boats WHERE id = ? AND regatta_id = ?",
@@ -344,16 +346,114 @@ def patch_boat(
     return common.boat_dict(row)
 
 
-@router.put("/marks")
-def set_marks(
-    token: str, body: MarksIn, conn: sqlite3.Connection = Depends(get_conn)
-) -> list[dict]:
+def _course(conn: sqlite3.Connection, regatta_id: int, course_id: int) -> sqlite3.Row:
+    course = conn.execute(
+        "SELECT * FROM courses WHERE id = ? AND regatta_id = ?",
+        (course_id, regatta_id),
+    ).fetchone()
+    if not course:
+        raise HTTPException(status_code=404, detail="Banan finns inte")
+    return course
+
+
+@router.post("/courses", status_code=201)
+def add_course(
+    token: str, body: CourseIn, conn: sqlite3.Connection = Depends(get_conn)
+) -> dict:
     regatta = regatta_by_token(conn, token)
-    db.set_marks(conn, regatta["id"], body.marks)
+    course_id = db.create_course(conn, regatta["id"], body.name, body.marks)
     conn.commit()
-    return [
-        {"id": row["id"], "seq": row["seq"], "name": row["name"]}
-        for row in conn.execute(
-            "SELECT * FROM marks WHERE regatta_id = ? ORDER BY seq", (regatta["id"],)
+    return common.course_dict(
+        conn, conn.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
+    )
+
+
+@router.patch("/courses/{course_id}")
+def patch_course(
+    token: str,
+    course_id: int,
+    body: CoursePatch,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    regatta = regatta_by_token(conn, token)
+    _course(conn, regatta["id"], course_id)
+    if body.name is not None:
+        conn.execute(
+            "UPDATE courses SET name = ? WHERE id = ?", (body.name.strip(), course_id)
         )
-    ]
+    if body.marks is not None:
+        db.set_marks(conn, course_id, body.marks)
+    conn.commit()
+    return common.course_dict(
+        conn, conn.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
+    )
+
+
+@router.delete("/courses/{course_id}", status_code=204)
+def delete_course(
+    token: str, course_id: int, conn: sqlite3.Connection = Depends(get_conn)
+) -> None:
+    regatta = regatta_by_token(conn, token)
+    _course(conn, regatta["id"], course_id)
+    used = conn.execute(
+        "SELECT 1 FROM roundings WHERE race_id IN "
+        "(SELECT id FROM races WHERE course_id = ?) LIMIT 1",
+        (course_id,),
+    ).fetchone()
+    if used:
+        raise HTTPException(
+            status_code=409,
+            detail="Banan används av race med rapporterade rundningar och kan inte tas bort",
+        )
+    conn.execute(
+        "UPDATE races SET course_id = NULL WHERE course_id = ?", (course_id,)
+    )
+    conn.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+    conn.commit()
+
+
+@router.post("/races/{number}/course")
+def set_race_course(
+    token: str,
+    number: int,
+    body: RaceCourseIn,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    """Pick which course a race sails. Only before the start — an ongoing
+    race's course is part of the reported data."""
+    regatta = regatta_by_token(conn, token)
+    race = _race(conn, regatta["id"], number)
+    if race["status"] != "upcoming":
+        raise HTTPException(
+            status_code=409, detail="Banan kan bara bytas innan racet startat"
+        )
+    course = _course(conn, regatta["id"], body.course_id)
+    conn.execute(
+        "UPDATE races SET course_id = ? WHERE id = ?", (body.course_id, race["id"])
+    )
+    db.log_event(conn, race["id"], "course_set", note=course["name"])
+    conn.commit()
+    return common.race_dict(conn, _race(conn, regatta["id"], number))
+
+
+@router.post("/races/{number}/shorten")
+def shorten_race(
+    token: str, number: int, conn: sqlite3.Connection = Depends(get_conn)
+) -> dict:
+    """Shortened course (flag S, RRS 32): the race finishes at the mark
+    where roundings were last recorded — one button ends it."""
+    regatta = regatta_by_token(conn, token)
+    race = _race(conn, regatta["id"], number)
+    if race["status"] != "ongoing":
+        raise HTTPException(
+            status_code=409, detail="Bara ett pågående race kan avkortas"
+        )
+    conn.execute(
+        "UPDATE races SET shortened = 1, status = 'finished' WHERE id = ?",
+        (race["id"],),
+    )
+    db.log_event(
+        conn, race["id"], "shortened", note="Avkortad bana (S) — racet avslutat"
+    )
+    conn.commit()
+    return common.race_dict(conn, _race(conn, regatta["id"], number))

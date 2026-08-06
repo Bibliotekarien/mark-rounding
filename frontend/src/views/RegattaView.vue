@@ -112,9 +112,13 @@ watch(selectedRace, loadRace);
         <h2>Race {{ currentRace.number }}</h2>
         <span class="pill" :class="currentRace.status">
           {{ raceStatusLabel[currentRace.status] }}
+          <template v-if="currentRace.shortened"> · Avkortad (S)</template>
           <template v-if="currentRace.started_at"> · start {{ fmtTime(currentRace.started_at) }}</template>
         </span>
       </div>
+      <p class="muted" v-if="currentRace.course_name" style="margin: 0.3rem 0 0">
+        Bana: {{ currentRace.course_name }}
+      </p>
       <p class="muted" v-if="currentRace.general_recalls > 0" style="margin: 0.3rem 0 0">
         {{ currentRace.general_recalls }} allmän(na) återkallelse(r)
       </p>

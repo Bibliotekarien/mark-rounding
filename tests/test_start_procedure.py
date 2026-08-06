@@ -81,7 +81,7 @@ def test_boat_status_codes_and_leaderboard(client, admin_headers):
     token = regatta["report_token"]
     overview = client.get(f"/api/report/{token}").json()
     boats = {b["sail_number"]: b for b in overview["boats"]}
-    mark = overview["marks"][1]
+    mark = overview["courses"][0]["marks"][1]
 
     # SWE 7 rounds a mark but is OCS; SWE 106 gets a 20 % penalty (ZFP)
     client.post(
@@ -131,7 +131,7 @@ def test_protocol_notes_and_undo_logged(client, admin_headers):
     token = regatta["report_token"]
     overview = client.get(f"/api/report/{token}").json()
     boat = overview["boats"][0]
-    mark = overview["marks"][0]
+    mark = overview["courses"][0]["marks"][0]
 
     resp = client.post(
         f"/api/report/{token}/races/1/log",

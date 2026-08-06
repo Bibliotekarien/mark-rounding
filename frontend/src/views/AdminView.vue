@@ -25,6 +25,7 @@ const blankForm = () => ({
   end_date: "",
   sailarena_url: "",
   race_count: 1,
+  course_name: "Bana 1",
   marks: "Start\nKryssmärke 1\nLänsmärke\nMål",
 });
 const form = ref(blankForm());
@@ -96,14 +97,19 @@ async function fetchSailarena() {
 async function createRegatta() {
   error.value = "";
   try {
+    const markNames = form.value.marks.split("\n").map((s) => s.trim()).filter(Boolean);
     const body = {
       ...form.value,
       lat: form.value.lat === "" ? null : form.value.lat,
       lon: form.value.lon === "" ? null : form.value.lon,
       start_date: form.value.start_date || null,
       end_date: form.value.end_date || null,
-      marks: form.value.marks.split("\n").map((s) => s.trim()).filter(Boolean),
+      courses: markNames.length
+        ? [{ name: form.value.course_name.trim() || "Bana 1", marks: markNames }]
+        : [],
     };
+    delete body.course_name;
+    delete body.marks;
     const regatta = await api.createRegatta(body);
     if (previewBoats.value.length) {
       await api.importBoats(regatta.id, previewBoats.value, false);
@@ -121,7 +127,8 @@ async function createRegatta() {
 // --- edit flow ---
 
 const editForm = ref(null);
-const editMarks = ref("");
+const editCourses = ref({}); // course id -> { name, marksText }
+const newEditCourse = ref({ name: "", marksText: "" });
 const importUrl = ref("");
 
 async function openRegatta(id) {
@@ -138,9 +145,68 @@ async function openRegatta(id) {
     sailarena_url: detail.sailarena_url,
     race_count: detail.races.length,
   };
-  editMarks.value = detail.marks.map((m) => m.name).join("\n");
+  const edits = {};
+  for (const course of detail.courses) {
+    edits[course.id] = {
+      name: course.name,
+      marksText: course.marks.map((m) => m.name).join("\n"),
+    };
+  }
+  editCourses.value = edits;
   importUrl.value = detail.sailarena_url;
   notice.value = "";
+}
+
+function parseMarks(text) {
+  return text.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+async function saveCourse(course) {
+  const edit = editCourses.value[course.id];
+  const names = parseMarks(edit.marksText);
+  if (!edit.name.trim() || !names.length) return;
+  if (
+    course.marks.length > names.length &&
+    !confirm(
+      "Banan får färre märken — rundningar vid borttagna märken raderas i race som seglar den. Fortsätt?"
+    )
+  )
+    return;
+  try {
+    await api.adminPatchCourse(editing.value.id, course.id, {
+      name: edit.name.trim(),
+      marks: names,
+    });
+    notice.value = "Banan sparad.";
+    await openRegatta(editing.value.id);
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+async function removeCourse(course) {
+  if (!confirm(`Ta bort banan ${course.name}?`)) return;
+  try {
+    await api.adminDeleteCourse(editing.value.id, course.id);
+    await openRegatta(editing.value.id);
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+async function addCourse() {
+  const names = parseMarks(newEditCourse.value.marksText);
+  if (!newEditCourse.value.name.trim() || !names.length) return;
+  try {
+    await api.adminAddCourse(editing.value.id, {
+      name: newEditCourse.value.name.trim(),
+      marks: names,
+    });
+    newEditCourse.value = { name: "", marksText: "" };
+    await openRegatta(editing.value.id);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function saveRegatta() {
@@ -154,8 +220,6 @@ async function saveRegatta() {
       end_date: editForm.value.end_date || null,
     };
     await api.patchRegatta(editing.value.id, body);
-    const names = editMarks.value.split("\n").map((s) => s.trim()).filter(Boolean);
-    if (names.length) await api.setMarks(editing.value.id, names);
     notice.value = "Sparat.";
     await openRegatta(editing.value.id);
     await loadList();
@@ -311,7 +375,11 @@ async function regenerate() {
           <div class="field"><label>Longitud</label><input type="number" step="any" v-model.number="form.lon" /></div>
         </div>
         <div class="field">
-          <label>Bana — ett märke per rad, i rundningsordning (gäller hela regattan)</label>
+          <label>Första banans namn (fler banor läggs till efter att regattan skapats)</label>
+          <input v-model="form.course_name" />
+        </div>
+        <div class="field">
+          <label>Märken — ett per rad, i rundningsordning</label>
           <textarea v-model="form.marks" rows="5"></textarea>
         </div>
         <button class="primary" @click="createRegatta" :disabled="!form.name.trim()">Skapa regatta</button>
@@ -351,12 +419,44 @@ async function regenerate() {
           <div class="field"><label>Latitud</label><input type="number" step="any" v-model.number="editForm.lat" /></div>
           <div class="field"><label>Longitud</label><input type="number" step="any" v-model.number="editForm.lon" /></div>
         </div>
-        <div class="field">
-          <label>Bana — ett märke per rad. Att korta banan raderar rundningar vid borttagna märken.</label>
-          <textarea v-model="editMarks" rows="5"></textarea>
-        </div>
         <button class="primary" @click="saveRegatta">Spara</button>
         <button class="danger" style="margin-left: 0.5rem" @click="removeRegatta">Radera regatta</button>
+      </div>
+
+      <div class="card">
+        <h3>Banor ({{ editing.courses.length }})</h3>
+        <p class="muted">
+          Kommittén väljer bana per race i rapporteringsvyn. Ett märke per rad,
+          i rundningsordning. Att ta bort märken raderar rundningar vid dem.
+        </p>
+        <div v-for="course in editing.courses" :key="course.id" class="card" style="margin-bottom: 0.75rem">
+          <div class="grid-2">
+            <div class="field">
+              <label>Namn</label>
+              <input v-if="editCourses[course.id]" v-model="editCourses[course.id].name" />
+            </div>
+            <div class="field">
+              <label>Märken</label>
+              <textarea v-if="editCourses[course.id]" v-model="editCourses[course.id].marksText" rows="4"></textarea>
+            </div>
+          </div>
+          <button class="primary" @click="saveCourse(course)">Spara bana</button>
+          <button class="danger" style="margin-left: 0.5rem" @click="removeCourse(course)">Ta bort</button>
+        </div>
+        <h4>Ny bana</h4>
+        <div class="grid-2">
+          <div class="field">
+            <label>Namn</label>
+            <input v-model="newEditCourse.name" placeholder="T.ex. Kryss-läns 2 varv" />
+          </div>
+          <div class="field">
+            <label>Märken</label>
+            <textarea v-model="newEditCourse.marksText" rows="4" placeholder="Start&#10;Kryssmärke&#10;Mål"></textarea>
+          </div>
+        </div>
+        <button class="primary" @click="addCourse" :disabled="!newEditCourse.name.trim() || !newEditCourse.marksText.trim()">
+          Lägg till bana
+        </button>
       </div>
 
       <div class="card">

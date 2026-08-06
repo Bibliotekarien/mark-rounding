@@ -242,32 +242,100 @@ async function toggleBoat(boat) {
   }
 }
 
-// --- course editing ---
-const courseText = ref("");
+// --- course library editing ---
+const courseEdits = ref({}); // course id -> { name, marksText }
+const newCourse = ref({ name: "", marksText: "" });
 
 watch(panel, (value) => {
   if (value === "course" && overview.value) {
-    courseText.value = overview.value.marks.map((m) => m.name).join("\n");
+    const edits = {};
+    for (const course of overview.value.courses) {
+      edits[course.id] = {
+        name: course.name,
+        marksText: course.marks.map((m) => m.name).join("\n"),
+      };
+    }
+    courseEdits.value = edits;
   }
 });
 
-async function saveCourse() {
-  const names = courseText.value
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (!names.length) return;
+function parseMarks(text) {
+  return text.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
+async function saveCourse(course) {
+  const edit = courseEdits.value[course.id];
+  const names = parseMarks(edit.marksText);
+  if (!names.length || !edit.name.trim()) return;
   if (
-    overview.value.marks.length > names.length &&
+    course.marks.length > names.length &&
     !confirm(
-      "Banan kortas — rundningar vid borttagna märken raderas i alla race. Fortsätt?"
+      "Banan får färre märken — rundningar vid borttagna märken raderas i race som seglar den. Fortsätt?"
     )
   ) {
     return;
   }
   try {
-    await api.reportSetMarks(token, names);
-    panel.value = null;
+    await api.reportPatchCourse(token, course.id, {
+      name: edit.name.trim(),
+      marks: names,
+    });
+    await refresh();
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+async function removeCourse(course) {
+  if (!confirm(`Ta bort banan ${course.name}?`)) return;
+  try {
+    await api.reportDeleteCourse(token, course.id);
+    await refresh();
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+async function addCourse() {
+  const names = parseMarks(newCourse.value.marksText);
+  if (!newCourse.value.name.trim() || !names.length) return;
+  try {
+    const created = await api.reportAddCourse(token, {
+      name: newCourse.value.name.trim(),
+      marks: names,
+    });
+    newCourse.value = { name: "", marksText: "" };
+    await refresh();
+    courseEdits.value[created.id] = {
+      name: created.name,
+      marksText: created.marks.map((m) => m.name).join("\n"),
+    };
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+// --- per-race course + shortening ---
+
+async function changeRaceCourse(event) {
+  try {
+    await api.setRaceCourse(token, selectedRace.value, Number(event.target.value));
+    await refresh();
+  } catch (e) {
+    error.value = e.message;
+    await refresh();
+  }
+}
+
+async function shorten() {
+  if (
+    !confirm(
+      "Avkorta banan (S)? Racet avslutas nu — rundningarna vid senaste märket räknas som målgång."
+    )
+  )
+    return;
+  try {
+    await api.shortenRace(token, selectedRace.value);
     await refresh();
   } catch (e) {
     error.value = e.message;
@@ -311,9 +379,21 @@ async function saveCourse() {
         </span>
       </div>
 
-      <!-- upcoming, no countdown armed: arm the sequence -->
+      <!-- upcoming, no countdown armed: pick course, arm the sequence -->
       <template v-if="currentRace.status === 'upcoming' && !currentRace.planned_start">
-        <div class="grid-2" style="margin-top: 0.5rem">
+        <div class="field" style="margin-top: 0.5rem">
+          <label>Bana för race {{ selectedRace }}</label>
+          <select :value="currentRace.course_id ?? ''" @change="changeRaceCourse">
+            <option value="" disabled>Välj bana …</option>
+            <option v-for="course in overview.courses" :key="course.id" :value="course.id">
+              {{ course.name }} ({{ course.marks.map((m) => m.name).join(" → ") }})
+            </option>
+          </select>
+        </div>
+        <p v-if="!currentRace.course_id" class="error">
+          Välj bana innan racet startas.
+        </p>
+        <div class="grid-2">
           <div class="field">
             <label>Nedräkning (minuter)</label>
             <input type="number" min="1" max="60" v-model.number="seqMinutes" />
@@ -325,8 +405,12 @@ async function saveCourse() {
             </select>
           </div>
         </div>
-        <button class="primary" @click="armSequence">Starta sekvens ({{ seqMinutes }} min)</button>
-        <button style="margin-left: 0.5rem" @click="setStatus('ongoing')">Start utan sekvens</button>
+        <button class="primary" @click="armSequence" :disabled="!currentRace.course_id">
+          Starta sekvens ({{ seqMinutes }} min)
+        </button>
+        <button style="margin-left: 0.5rem" @click="setStatus('ongoing')" :disabled="!currentRace.course_id">
+          Start utan sekvens
+        </button>
       </template>
 
       <!-- countdown running -->
@@ -343,9 +427,16 @@ async function saveCourse() {
 
       <!-- ongoing / finished -->
       <template v-else>
+        <p class="muted" v-if="currentRace.course_name" style="margin: 0.3rem 0 0">
+          Bana: {{ currentRace.course_name }}
+          <span v-if="currentRace.shortened"> · Avkortad (S)</span>
+        </p>
         <div class="selector-row" style="margin: 0.5rem 0 0">
           <button v-if="currentRace.status === 'ongoing'" class="primary" @click="setStatus('finished')">
             Avsluta race
+          </button>
+          <button v-if="currentRace.status === 'ongoing'" @click="shorten">
+            Avkorta & avsluta (S)
           </button>
           <button v-if="currentRace.status === 'ongoing'" class="danger" @click="generalRecall">
             Allmän återkallelse
@@ -454,14 +545,37 @@ async function saveCourse() {
       </table>
     </div>
 
-    <!-- course editor panel -->
+    <!-- course library panel -->
     <div v-if="panel === 'course'" class="card">
-      <h3>Bana (ett märke per rad, i rundningsordning)</h3>
-      <textarea v-model="courseText" rows="6"></textarea>
-      <div class="selector-row" style="margin-top: 0.5rem">
-        <button class="primary" @click="saveCourse">Spara bana</button>
-        <button @click="panel = null">Avbryt</button>
+      <h3>Banor</h3>
+      <p class="muted">
+        Definiera banorna här och välj bana per race i startpanelen.
+        Ett märke per rad, i rundningsordning.
+      </p>
+      <div v-for="course in overview.courses" :key="course.id" class="card" style="margin-bottom: 0.75rem">
+        <div class="field">
+          <label>Namn</label>
+          <input v-if="courseEdits[course.id]" v-model="courseEdits[course.id].name" />
+        </div>
+        <div class="field">
+          <label>Märken</label>
+          <textarea v-if="courseEdits[course.id]" v-model="courseEdits[course.id].marksText" rows="4"></textarea>
+        </div>
+        <button class="primary" @click="saveCourse(course)">Spara</button>
+        <button class="danger" style="margin-left: 0.5rem" @click="removeCourse(course)">Ta bort</button>
       </div>
+      <h4>Ny bana</h4>
+      <div class="field">
+        <label>Namn</label>
+        <input v-model="newCourse.name" placeholder="T.ex. Kryss-läns 2 varv" />
+      </div>
+      <div class="field">
+        <label>Märken</label>
+        <textarea v-model="newCourse.marksText" rows="4" placeholder="Start&#10;Kryssmärke&#10;Länsmärke&#10;Mål"></textarea>
+      </div>
+      <button class="primary" @click="addCourse" :disabled="!newCourse.name.trim() || !newCourse.marksText.trim()">
+        Lägg till bana
+      </button>
     </div>
 
     <!-- mark navigation -->
@@ -479,7 +593,8 @@ async function saveCourse() {
       <button :disabled="markIndex >= marks.length - 1" @click="stepMark(1)">→</button>
     </div>
     <p v-else class="muted">
-      Ingen bana definierad ännu — tryck på ”Bana” och lägg in märkena.
+      Ingen bana vald för det här racet — definiera banor under ”Bana” och
+      välj sedan bana i startpanelen ovan.
     </p>
 
     <template v-if="currentMark">
