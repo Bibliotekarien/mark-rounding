@@ -11,7 +11,9 @@ def create_regatta(client, admin_headers, **overrides):
         "start_date": "2026-06-19",
         "end_date": "2026-06-20",
         "race_count": 2,
-        "marks": ["Start", "Kryssmärke", "Gate", "Mål"],
+        "courses": [
+            {"name": "Standardbana", "marks": ["Start", "Kryssmärke", "Gate", "Mål"]}
+        ],
     }
     body.update(overrides)
     resp = client.post("/api/admin/regattas", json=body, headers=admin_headers)
@@ -40,13 +42,17 @@ def test_full_reporting_flow(client, admin_headers):
     token = regatta["report_token"]
 
     overview = client.get(f"/api/report/{token}").json()
-    assert [m["name"] for m in overview["marks"]] == ["Start", "Kryssmärke", "Gate", "Mål"]
+    course = overview["courses"][0]
+    assert course["name"] == "Standardbana"
+    assert [m["name"] for m in course["marks"]] == ["Start", "Kryssmärke", "Gate", "Mål"]
     assert len(overview["races"]) == 2
+    # races default to the regatta's first course
+    assert all(r["course_id"] == course["id"] for r in overview["races"])
     boats = {b["sail_number"]: b for b in overview["boats"]}
     # natural sail number sort: 7 < 106 < 3031
     assert [b["sail_number"] for b in overview["boats"]] == ["SWE 7", "SWE 106", "SWE 3031"]
 
-    mark = overview["marks"][1]
+    mark = course["marks"][1]
     b7, b106 = boats["SWE 7"], boats["SWE 106"]
 
     r1 = client.post(
@@ -124,13 +130,16 @@ def test_report_boat_management(client, admin_headers):
 def test_report_course_editing(client, admin_headers):
     regatta = create_regatta(client, admin_headers)
     token = regatta["report_token"]
-    resp = client.put(
-        f"/api/report/{token}/marks",
-        json={"marks": ["Start", "Märke 1", "Mål"]},
+    course_id = regatta["courses"][0]["id"]
+    resp = client.patch(
+        f"/api/report/{token}/courses/{course_id}",
+        json={"marks": ["Start", "Märke 1", "Mål"], "name": "Kortbana"},
     )
     assert resp.status_code == 200
-    assert [m["name"] for m in resp.json()] == ["Start", "Märke 1", "Mål"]
-    assert [m["seq"] for m in resp.json()] == [1, 2, 3]
+    body = resp.json()
+    assert body["name"] == "Kortbana"
+    assert [m["name"] for m in body["marks"]] == ["Start", "Märke 1", "Mål"]
+    assert [m["seq"] for m in body["marks"]] == [1, 2, 3]
 
 
 def test_invalid_token_rejected(client):

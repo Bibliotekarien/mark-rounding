@@ -8,6 +8,20 @@ class LoginIn(BaseModel):
     password: str
 
 
+class CourseIn(BaseModel):
+    name: str = Field(min_length=1)
+    marks: list[str] = []
+
+
+class CoursePatch(BaseModel):
+    name: str | None = None
+    marks: list[str] | None = None
+
+
+class RaceCourseIn(BaseModel):
+    course_id: int
+
+
 class RegattaIn(BaseModel):
     name: str = Field(min_length=1)
     venue: str = ""
@@ -18,7 +32,7 @@ class RegattaIn(BaseModel):
     end_date: str | None = None
     sailarena_url: str = ""
     race_count: int = Field(default=1, ge=1, le=50)
-    marks: list[str] = []
+    courses: list[CourseIn] = []
 
 
 class RegattaPatch(BaseModel):
@@ -53,10 +67,6 @@ class BoatPatch(BaseModel):
     nation: str | None = None
     srs: str | None = None
     active: bool | None = None
-
-
-class MarksIn(BaseModel):
-    marks: list[str] = Field(min_length=1)
 
 
 class RoundingIn(BaseModel):

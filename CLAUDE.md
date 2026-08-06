@@ -38,6 +38,12 @@ en hemlig URL, publiken följer race och regattor. Läs `README.md`
   Av i dev (kräver `MARKROUNDING_MATOMO_URL` + `_SITE_ID`).
 - **Anubis** PoW-gatar HTML-trafik i prod; `/api/*` går förbi — tokens och
   rate limits i backend är därför load-bearing.
+- **Banor**: en regatta har ett bibliotek av namngivna banor (`courses`),
+  märken hör till en bana och varje race pekar på sin bana (`course_id`,
+  låst när racet startat). Banbyte per race loggas i protokollet. En bana
+  med rapporterade rundningar kan inte tas bort. Avkortad bana (flagga S,
+  RRS 32) = `POST .../shorten`: sätter `shortened=1` + avslutar racet —
+  rundningarna vid senaste märket är målgången.
 - **Rundningar**: append + delete (ångra), aldrig update. UNIQUE
   (race, märke, båt) — dubbelklick ger 409 som UI:t hanterar tyst via
   refresh.

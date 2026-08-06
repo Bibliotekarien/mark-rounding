@@ -54,6 +54,8 @@ export const boatCodeLabel = {
 };
 
 export const logEventLabel = {
+  course_set: "Bana vald",
+  shortened: "Avkortad bana (S)",
   sequence: "Startsekvens",
   postpone: "AP — uppskjutet",
   start: "Startsignal",

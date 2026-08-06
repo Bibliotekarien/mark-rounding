@@ -17,8 +17,9 @@ from .deps import regatta_by_id
 from .models import BoatIn
 from .models import BoatPatch
 from .models import BoatsImportIn
+from .models import CourseIn
+from .models import CoursePatch
 from .models import LoginIn
-from .models import MarksIn
 from .models import RegattaIn
 from .models import RegattaPatch
 from .models import SailarenaPreviewIn
@@ -76,8 +77,8 @@ def create_regatta(
         ),
     )
     regatta_id = cur.lastrowid
-    if body.marks:
-        db.set_marks(conn, regatta_id, body.marks)
+    for course in body.courses:
+        db.create_course(conn, regatta_id, course.name, course.marks)
     db.sync_race_count(conn, regatta_id, body.race_count)
     conn.commit()
     return _regatta_admin_view(conn, regatta_by_id(conn, regatta_id))
@@ -133,19 +134,68 @@ def regenerate_token(
     return {"report_token": token}
 
 
-@router.put("/regattas/{regatta_id}/marks")
-def set_marks(
-    regatta_id: int, body: MarksIn, conn: sqlite3.Connection = Depends(get_conn)
-) -> list[dict]:
+@router.post("/regattas/{regatta_id}/courses", status_code=201)
+def add_course(
+    regatta_id: int, body: CourseIn, conn: sqlite3.Connection = Depends(get_conn)
+) -> dict:
     regatta_by_id(conn, regatta_id)
-    db.set_marks(conn, regatta_id, body.marks)
+    course_id = db.create_course(conn, regatta_id, body.name, body.marks)
     conn.commit()
-    return [
-        {"id": row["id"], "seq": row["seq"], "name": row["name"]}
-        for row in conn.execute(
-            "SELECT * FROM marks WHERE regatta_id = ? ORDER BY seq", (regatta_id,)
+    return common.course_dict(
+        conn, conn.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
+    )
+
+
+@router.patch("/regattas/{regatta_id}/courses/{course_id}")
+def patch_course(
+    regatta_id: int,
+    course_id: int,
+    body: CoursePatch,
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    regatta_by_id(conn, regatta_id)
+    course = conn.execute(
+        "SELECT * FROM courses WHERE id = ? AND regatta_id = ?",
+        (course_id, regatta_id),
+    ).fetchone()
+    if not course:
+        raise HTTPException(status_code=404, detail="Banan finns inte")
+    if body.name is not None:
+        conn.execute(
+            "UPDATE courses SET name = ? WHERE id = ?", (body.name.strip(), course_id)
         )
-    ]
+    if body.marks is not None:
+        db.set_marks(conn, course_id, body.marks)
+    conn.commit()
+    return common.course_dict(
+        conn, conn.execute("SELECT * FROM courses WHERE id = ?", (course_id,)).fetchone()
+    )
+
+
+@router.delete("/regattas/{regatta_id}/courses/{course_id}", status_code=204)
+def delete_course(
+    regatta_id: int, course_id: int, conn: sqlite3.Connection = Depends(get_conn)
+) -> None:
+    regatta_by_id(conn, regatta_id)
+    course = conn.execute(
+        "SELECT id FROM courses WHERE id = ? AND regatta_id = ?",
+        (course_id, regatta_id),
+    ).fetchone()
+    if not course:
+        raise HTTPException(status_code=404, detail="Banan finns inte")
+    used = conn.execute(
+        "SELECT 1 FROM roundings WHERE race_id IN "
+        "(SELECT id FROM races WHERE course_id = ?) LIMIT 1",
+        (course_id,),
+    ).fetchone()
+    if used:
+        raise HTTPException(
+            status_code=409,
+            detail="Banan används av race med rapporterade rundningar och kan inte tas bort",
+        )
+    conn.execute("UPDATE races SET course_id = NULL WHERE course_id = ?", (course_id,))
+    conn.execute("DELETE FROM courses WHERE id = ?", (course_id,))
+    conn.commit()
 
 
 @router.post("/sailarena/preview")

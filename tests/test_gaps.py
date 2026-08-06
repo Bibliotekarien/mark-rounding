@@ -12,7 +12,8 @@ def test_gap_seconds_per_mark(client, admin_headers, monkeypatch):
     token = regatta["report_token"]
     overview = client.get(f"/api/report/{token}").json()
     boats = {b["sail_number"]: b for b in overview["boats"]}
-    mark1, mark2 = overview["marks"][1], overview["marks"][2]
+    marks = overview["courses"][0]["marks"]
+    mark1, mark2 = marks[1], marks[2]
 
     # Start the race first — the first rounding would otherwise auto-flip
     # status and consume an extra tick from the patched clock below.

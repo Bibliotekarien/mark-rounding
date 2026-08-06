@@ -89,7 +89,15 @@ export const api = {
   reportAddBoat: (token, boat) => post(`/api/report/${token}/boats`, boat),
   reportPatchBoat: (token, boatId, fields) =>
     patch(`/api/report/${token}/boats/${boatId}`, fields),
-  reportSetMarks: (token, marks) => put(`/api/report/${token}/marks`, { marks }),
+  reportAddCourse: (token, course) => post(`/api/report/${token}/courses`, course),
+  reportPatchCourse: (token, courseId, fields) =>
+    patch(`/api/report/${token}/courses/${courseId}`, fields),
+  reportDeleteCourse: (token, courseId) =>
+    del(`/api/report/${token}/courses/${courseId}`),
+  setRaceCourse: (token, number, courseId) =>
+    post(`/api/report/${token}/races/${number}/course`, { course_id: courseId }),
+  shortenRace: (token, number) =>
+    post(`/api/report/${token}/races/${number}/shorten`),
 
   // admin
   login: (password) => post("/api/auth/login", { password }),
@@ -99,7 +107,11 @@ export const api = {
   patchRegatta: (id, body) => patch(`/api/admin/regattas/${id}`, body),
   deleteRegatta: (id) => del(`/api/admin/regattas/${id}`),
   regenerateToken: (id) => post(`/api/admin/regattas/${id}/regenerate-token`),
-  setMarks: (id, marks) => put(`/api/admin/regattas/${id}/marks`, { marks }),
+  adminAddCourse: (id, course) => post(`/api/admin/regattas/${id}/courses`, course),
+  adminPatchCourse: (id, courseId, fields) =>
+    patch(`/api/admin/regattas/${id}/courses/${courseId}`, fields),
+  adminDeleteCourse: (id, courseId) =>
+    del(`/api/admin/regattas/${id}/courses/${courseId}`),
   sailarenaPreview: (url) => post("/api/admin/sailarena/preview", { url }),
   importBoats: (id, boats, replace) =>
     post(`/api/admin/regattas/${id}/boats/import`, { boats, replace }),

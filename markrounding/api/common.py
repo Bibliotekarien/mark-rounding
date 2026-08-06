@@ -44,6 +44,12 @@ def race_dict(conn: sqlite3.Connection, race: sqlite3.Row) -> dict:
     count = conn.execute(
         "SELECT COUNT(*) AS n FROM roundings WHERE race_id = ?", (race["id"],)
     ).fetchone()["n"]
+    course_name = None
+    if race["course_id"]:
+        row = conn.execute(
+            "SELECT name FROM courses WHERE id = ?", (race["course_id"],)
+        ).fetchone()
+        course_name = row["name"] if row else None
     return {
         "id": race["id"],
         "number": race["number"],
@@ -52,7 +58,24 @@ def race_dict(conn: sqlite3.Connection, race: sqlite3.Row) -> dict:
         "planned_start": race["planned_start"],
         "prep_flag": race["prep_flag"],
         "general_recalls": race["general_recalls"],
+        "course_id": race["course_id"],
+        "course_name": course_name,
+        "shortened": bool(race["shortened"]),
         "rounding_count": count,
+    }
+
+
+def course_dict(conn: sqlite3.Connection, course: sqlite3.Row) -> dict:
+    return {
+        "id": course["id"],
+        "name": course["name"],
+        "marks": [
+            {"id": row["id"], "seq": row["seq"], "name": row["name"]}
+            for row in conn.execute(
+                "SELECT * FROM marks WHERE course_id = ? ORDER BY seq",
+                (course["id"],),
+            )
+        ],
     }
 
 
@@ -60,10 +83,10 @@ def regatta_detail(
     conn: sqlite3.Connection, regatta: sqlite3.Row, include_inactive: bool = False
 ) -> dict:
     out = regatta_summary(regatta)
-    out["marks"] = [
-        {"id": row["id"], "seq": row["seq"], "name": row["name"]}
+    out["courses"] = [
+        course_dict(conn, row)
         for row in conn.execute(
-            "SELECT * FROM marks WHERE regatta_id = ? ORDER BY seq", (regatta["id"],)
+            "SELECT * FROM courses WHERE regatta_id = ? ORDER BY id", (regatta["id"],)
         )
     ]
     out["races"] = [
@@ -89,10 +112,15 @@ def race_progress(conn: sqlite3.Connection, regatta_id: int, race: sqlite3.Row) 
     broken by who rounded that mark first. Boats without roundings follow,
     in sail number order.
     """
-    marks = list(
-        conn.execute(
-            "SELECT * FROM marks WHERE regatta_id = ? ORDER BY seq", (regatta_id,)
+    marks = (
+        list(
+            conn.execute(
+                "SELECT * FROM marks WHERE course_id = ? ORDER BY seq",
+                (race["course_id"],),
+            )
         )
+        if race["course_id"]
+        else []
     )
     boats = {
         row["id"]: boat_dict(row)

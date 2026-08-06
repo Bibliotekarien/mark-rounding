@@ -28,12 +28,18 @@ CREATE TABLE IF NOT EXISTS regattas (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS marks (
+CREATE TABLE IF NOT EXISTS courses (
     id INTEGER PRIMARY KEY,
     regatta_id INTEGER NOT NULL REFERENCES regattas(id) ON DELETE CASCADE,
+    name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS marks (
+    id INTEGER PRIMARY KEY,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
     seq INTEGER NOT NULL,
     name TEXT NOT NULL,
-    UNIQUE (regatta_id, seq)
+    UNIQUE (course_id, seq)
 );
 
 CREATE TABLE IF NOT EXISTS races (
@@ -45,6 +51,8 @@ CREATE TABLE IF NOT EXISTS races (
     planned_start TEXT,
     prep_flag TEXT NOT NULL DEFAULT 'P',
     general_recalls INTEGER NOT NULL DEFAULT 0,
+    course_id INTEGER REFERENCES courses(id),
+    shortened INTEGER NOT NULL DEFAULT 0,
     UNIQUE (regatta_id, number),
     CHECK (status IN ('upcoming', 'ongoing', 'finished'))
 );
@@ -114,15 +122,52 @@ def _ensure_column(conn: sqlite3.Connection, table: str, name: str, ddl: str) ->
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
 
+def _migrate_marks_to_courses(conn: sqlite3.Connection) -> None:
+    """Pre-courses databases have marks keyed on regatta_id. Move each
+    regatta's marks into an auto-created course 'Bana 1' and point its
+    races at it. Mark ids are preserved so roundings stay valid."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(marks)")}
+    if "course_id" in cols:
+        return
+    conn.execute("PRAGMA foreign_keys=OFF")
+    for row in conn.execute("SELECT DISTINCT regatta_id FROM marks"):
+        conn.execute(
+            "INSERT INTO courses (regatta_id, name) VALUES (?, 'Bana 1')",
+            (row["regatta_id"],),
+        )
+    conn.execute(
+        "CREATE TABLE marks_new ("
+        "id INTEGER PRIMARY KEY, "
+        "course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE, "
+        "seq INTEGER NOT NULL, name TEXT NOT NULL, UNIQUE (course_id, seq))"
+    )
+    conn.execute(
+        "INSERT INTO marks_new (id, course_id, seq, name) "
+        "SELECT m.id, c.id, m.seq, m.name FROM marks m "
+        "JOIN courses c ON c.regatta_id = m.regatta_id"
+    )
+    conn.execute("DROP TABLE marks")
+    conn.execute("ALTER TABLE marks_new RENAME TO marks")
+    conn.execute(
+        "UPDATE races SET course_id = "
+        "(SELECT id FROM courses WHERE courses.regatta_id = races.regatta_id) "
+        "WHERE course_id IS NULL"
+    )
+    conn.execute("PRAGMA foreign_keys=ON")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
-    # Additive, idempotent migrations for databases created before the
-    # start procedure feature (no migration engine — see CLAUDE.md).
+    # Additive, idempotent migrations for databases created before newer
+    # features (no migration engine — see CLAUDE.md).
     _ensure_column(conn, "races", "planned_start", "planned_start TEXT")
     _ensure_column(conn, "races", "prep_flag", "prep_flag TEXT NOT NULL DEFAULT 'P'")
     _ensure_column(
         conn, "races", "general_recalls", "general_recalls INTEGER NOT NULL DEFAULT 0"
     )
+    _ensure_column(conn, "races", "course_id", "course_id INTEGER REFERENCES courses(id)")
+    _ensure_column(conn, "races", "shortened", "shortened INTEGER NOT NULL DEFAULT 0")
+    _migrate_marks_to_courses(conn)
     conn.commit()
 
 
@@ -166,8 +211,8 @@ def log_event(
     )
 
 
-def set_marks(conn: sqlite3.Connection, regatta_id: int, names: list[str]) -> None:
-    """Replace the course with the given ordered mark names.
+def set_marks(conn: sqlite3.Connection, course_id: int, names: list[str]) -> None:
+    """Replace a course's ordered mark names.
 
     Marks are matched by position so renaming keeps existing roundings.
     Marks beyond the new course length are deleted — their roundings
@@ -175,18 +220,39 @@ def set_marks(conn: sqlite3.Connection, regatta_id: int, names: list[str]) -> No
     """
     for seq, name in enumerate(names, start=1):
         updated = conn.execute(
-            "UPDATE marks SET name = ? WHERE regatta_id = ? AND seq = ?",
-            (name.strip(), regatta_id, seq),
+            "UPDATE marks SET name = ? WHERE course_id = ? AND seq = ?",
+            (name.strip(), course_id, seq),
         )
         if updated.rowcount == 0:
             conn.execute(
-                "INSERT INTO marks (regatta_id, seq, name) VALUES (?, ?, ?)",
-                (regatta_id, seq, name.strip()),
+                "INSERT INTO marks (course_id, seq, name) VALUES (?, ?, ?)",
+                (course_id, seq, name.strip()),
             )
     conn.execute(
-        "DELETE FROM marks WHERE regatta_id = ? AND seq > ?",
-        (regatta_id, len(names)),
+        "DELETE FROM marks WHERE course_id = ? AND seq > ?",
+        (course_id, len(names)),
     )
+
+
+def create_course(
+    conn: sqlite3.Connection, regatta_id: int, name: str, mark_names: list[str]
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO courses (regatta_id, name) VALUES (?, ?)",
+        (regatta_id, name.strip()),
+    )
+    course_id = cur.lastrowid
+    if mark_names:
+        set_marks(conn, course_id, mark_names)
+    return course_id
+
+
+def default_course_id(conn: sqlite3.Connection, regatta_id: int) -> int | None:
+    row = conn.execute(
+        "SELECT id FROM courses WHERE regatta_id = ? ORDER BY id LIMIT 1",
+        (regatta_id,),
+    ).fetchone()
+    return row["id"] if row else None
 
 
 def sync_race_count(conn: sqlite3.Connection, regatta_id: int, count: int) -> None:
@@ -198,11 +264,12 @@ def sync_race_count(conn: sqlite3.Connection, regatta_id: int, count: int) -> No
             "SELECT id, number FROM races WHERE regatta_id = ?", (regatta_id,)
         )
     }
+    course_id = default_course_id(conn, regatta_id)
     for number in range(1, count + 1):
         if number not in existing:
             conn.execute(
-                "INSERT INTO races (regatta_id, number) VALUES (?, ?)",
-                (regatta_id, number),
+                "INSERT INTO races (regatta_id, number, course_id) VALUES (?, ?, ?)",
+                (regatta_id, number, course_id),
             )
     for number, race_id in existing.items():
         if number > count:
