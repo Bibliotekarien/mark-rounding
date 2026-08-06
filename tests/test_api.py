@@ -169,12 +169,22 @@ def test_race_count_sync(client, admin_headers):
 
 def test_public_listing(client, admin_headers):
     create_regatta(client, admin_headers, name="Vårregattan")
-    create_regatta(client, admin_headers, name="Höstregattan", start_date="2026-09-01")
+    varen = create_regatta(client, admin_headers, name="Höstregattan", start_date="2026-09-01")
     listing = client.get("/api/regattas").json()
     assert len(listing) == 2
     assert "report_token" not in listing[0]
     slugs = {r["slug"] for r in listing}
     assert slugs == {"varregattan", "hostregattan"}
+    assert all(r["live_race"] is None for r in listing)
+
+    # an ongoing race surfaces as live_race — the /live entry point
+    client.post(
+        f"/api/report/{varen['report_token']}/races/2/status",
+        json={"status": "ongoing"},
+    )
+    listing = client.get("/api/regattas").json()
+    live = next(r for r in listing if r["slug"] == "hostregattan")
+    assert live["live_race"] == 2
 
 
 def test_regenerate_token(client, admin_headers):

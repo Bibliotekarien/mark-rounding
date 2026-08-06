@@ -29,6 +29,12 @@ def list_regattas(conn: sqlite3.Connection = Depends(get_conn)) -> list[dict]:
         item["race_count"] = sum(counts.values())
         item["finished_races"] = counts.get("finished", 0)
         item["ongoing_races"] = counts.get("ongoing", 0)
+        live = conn.execute(
+            "SELECT number FROM races WHERE regatta_id = ? AND status = 'ongoing' "
+            "ORDER BY number LIMIT 1",
+            (row["id"],),
+        ).fetchone()
+        item["live_race"] = live["number"] if live else None
         item["boat_count"] = conn.execute(
             "SELECT COUNT(*) AS n FROM boats WHERE regatta_id = ? AND active = 1",
             (row["id"],),
