@@ -1,0 +1,22 @@
+# Autostart av mark-rounding-stacken vid boot.
+# Installera: sudo cp deploy/markrounding.service /etc/systemd/system/
+#             sudo systemctl daemon-reload && sudo systemctl enable --now markrounding.service
+# Kraschrestart sköts av compose (restart: unless-stopped); uniten finns
+# bara för boot — därav oneshot + RemainAfterExit.
+
+[Unit]
+Description=markrounding app stack
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=markrounding
+WorkingDirectory=/opt/markrounding/app
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

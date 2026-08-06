@@ -1,0 +1,10 @@
+[Unit]
+Description=Nattlig markrounding-backup
+
+[Timer]
+OnCalendar=*-*-* 02:45:00 UTC
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

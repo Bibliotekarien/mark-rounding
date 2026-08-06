@@ -1,0 +1,12 @@
+# Engångsjobb som körs av markrounding-backup.timer.
+# Installera: sudo cp deploy/markrounding-backup.{service,timer} /etc/systemd/system/
+#             sudo systemctl daemon-reload && sudo systemctl enable --now markrounding-backup.timer
+
+[Unit]
+Description=markrounding SQLite backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/markrounding/app/scripts/backup.sh
