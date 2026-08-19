@@ -56,6 +56,10 @@ en hemlig URL, publiken följer race och regattor. Läs `README.md`
   leaderboard, övriga sorteras sist.
 - **Protokoll**: alla kommittéåtgärder loggas automatiskt i `race_log`
   (+ fritextanteckningar). Append-only — protokollet redigeras aldrig.
+  Enda undantaget är admins nollställning av ett race
+  (`POST /api/admin/regattas/{id}/races/{n}/reset`): den raderar racets
+  rundningar, båtkoder, startdata och protokoll och lämnar en enda
+  `race_reset`-rad. Medvetet inte åtkomlig via kommitténs rapport-token.
 
 ## Struktur
 

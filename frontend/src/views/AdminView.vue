@@ -4,7 +4,7 @@
 // the secret reporting URL.
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { api, hasAdminToken, setAdminToken } from "../api.js";
-import { fmtDateRange } from "../format.js";
+import { fmtDateRange, raceStatusLabel } from "../format.js";
 
 const loggedIn = ref(hasAdminToken());
 const password = ref("");
@@ -239,6 +239,22 @@ async function removeRegatta() {
   }
 }
 
+async function resetRace(race) {
+  if (
+    !confirm(
+      `Nollställ race ${race.number}? Alla rundningar, båtmarkeringar och hela protokollet för racet raderas. Detta kan inte ångras.`
+    )
+  )
+    return;
+  try {
+    await api.adminResetRace(editing.value.id, race.number);
+    notice.value = `Race ${race.number} nollställt.`;
+    await openRegatta(editing.value.id);
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
 async function importToExisting(replace) {
   if (!importUrl.value) return;
   previewLoading.value = true;
@@ -457,6 +473,30 @@ async function regenerate() {
         <button class="primary" @click="addCourse" :disabled="!newEditCourse.name.trim() || !newEditCourse.marksText.trim()">
           Lägg till bana
         </button>
+      </div>
+
+      <div class="card">
+        <h3>Race ({{ editing.races.length }})</h3>
+        <p class="muted">
+          Nollställning raderar racets rundningar, båtmarkeringar och hela
+          protokollet och sätter racet till Kommande igen. Kan inte ångras —
+          kommittén kan inte göra detta via rapporteringslänken.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Race</th><th>Status</th><th>Rundningar</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="race in editing.races" :key="race.id">
+              <td><strong>Race {{ race.number }}</strong></td>
+              <td>{{ raceStatusLabel[race.status] }}</td>
+              <td>{{ race.rounding_count }}</td>
+              <td style="text-align: right">
+                <button class="danger" @click="resetRace(race)">Nollställ</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="card">

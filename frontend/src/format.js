@@ -62,6 +62,7 @@ export const logEventLabel = {
   general_recall: "Allmän återkallelse",
   finish: "Race avslutat",
   reset: "Race återställt",
+  race_reset: "Racet nollställt av admin",
   boat_status: "Markering",
   boat_status_cleared: "Markering borttagen",
   rounding_undone: "Rundning ångrad",
