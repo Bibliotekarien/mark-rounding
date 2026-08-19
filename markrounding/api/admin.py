@@ -134,6 +134,37 @@ def regenerate_token(
     return {"report_token": token}
 
 
+@router.post("/regattas/{regatta_id}/races/{number}/reset")
+def reset_race(
+    regatta_id: int, number: int, conn: sqlite3.Connection = Depends(get_conn)
+) -> dict:
+    """Wipe a single race back to pristine: roundings, boat codes, start
+    data and the race protocol are all deleted. Admin-only on purpose —
+    the committee token must not be able to erase the protocol."""
+    regatta_by_id(conn, regatta_id)
+    race = conn.execute(
+        "SELECT * FROM races WHERE regatta_id = ? AND number = ?",
+        (regatta_id, number),
+    ).fetchone()
+    if not race:
+        raise HTTPException(status_code=404, detail="Racet finns inte")
+    conn.execute("DELETE FROM roundings WHERE race_id = ?", (race["id"],))
+    conn.execute("DELETE FROM race_boat_status WHERE race_id = ?", (race["id"],))
+    conn.execute("DELETE FROM race_log WHERE race_id = ?", (race["id"],))
+    conn.execute(
+        "UPDATE races SET status = 'upcoming', started_at = NULL, "
+        "planned_start = NULL, general_recalls = 0, shortened = 0 WHERE id = ?",
+        (race["id"],),
+    )
+    # The fresh protocol opens with a single entry recording the reset.
+    db.log_event(conn, race["id"], "race_reset", note="Racet nollställt av admin")
+    conn.commit()
+    return common.race_dict(
+        conn,
+        conn.execute("SELECT * FROM races WHERE id = ?", (race["id"],)).fetchone(),
+    )
+
+
 @router.post("/regattas/{regatta_id}/courses", status_code=201)
 def add_course(
     regatta_id: int, body: CourseIn, conn: sqlite3.Connection = Depends(get_conn)

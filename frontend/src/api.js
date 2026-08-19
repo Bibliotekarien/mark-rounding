@@ -107,6 +107,8 @@ export const api = {
   patchRegatta: (id, body) => patch(`/api/admin/regattas/${id}`, body),
   deleteRegatta: (id) => del(`/api/admin/regattas/${id}`),
   regenerateToken: (id) => post(`/api/admin/regattas/${id}/regenerate-token`),
+  adminResetRace: (id, number) =>
+    post(`/api/admin/regattas/${id}/races/${number}/reset`),
   adminAddCourse: (id, course) => post(`/api/admin/regattas/${id}/courses`, course),
   adminPatchCourse: (id, courseId, fields) =>
     patch(`/api/admin/regattas/${id}/courses/${courseId}`, fields),
