@@ -30,8 +30,13 @@ en hemlig URL, publiken följer race och regattor. Läs `README.md`
   själva, så parsern måste tåla varierande tabellstrukturer, flera tabeller
   per sida (startgrupper) och besättningsrader utan segelnummer. Skrapa
   skonsamt och tåla fel.
-- **Väder**: Open-Meteo, cachas 10 min per koordinat i processen. m/s,
-  grader (från), WMO-koder.
+- **Väder**: Open-Meteo, cachas 15 min per koordinat i processen;
+  hämtning är single-flight och vid uppströmsfel serveras senaste lyckade
+  svar (nytt försök efter en minut). m/s, grader (från), WMO-koder. Vid
+  startsignalen sparas en ögonblicksbild på racet (`races.start_weather`,
+  JSON, via bakgrundstråd — får aldrig blockera eller fälla starten) och
+  en sammanfattning loggas i protokollet; avslutade race visar startvädret
+  för publiken. Admin-reset av ett race rensar ögonblicksbilden.
 - **Matomo är server-side** (`matomo.py`, Tracking HTTP API från
   middleware) — ingen JS-tracker i klienten. Fire-and-forget, respekterar
   DNT/Sec-GPC, maskerar rapport-tokens, trackar endast dokumentladdningar.

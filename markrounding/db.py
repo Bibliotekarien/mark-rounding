@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS races (
     general_recalls INTEGER NOT NULL DEFAULT 0,
     course_id INTEGER REFERENCES courses(id),
     shortened INTEGER NOT NULL DEFAULT 0,
+    start_weather TEXT,
     UNIQUE (regatta_id, number),
     CHECK (status IN ('upcoming', 'ongoing', 'finished'))
 );
@@ -171,6 +172,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _ensure_column(
         conn, "regattas", "show_times", "show_times INTEGER NOT NULL DEFAULT 1"
     )
+    _ensure_column(conn, "races", "start_weather", "start_weather TEXT")
     _migrate_marks_to_courses(conn)
     conn.commit()
 

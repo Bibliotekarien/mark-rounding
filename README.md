@@ -30,9 +30,10 @@ andra kan se hur racet utvecklas i realtid.
   tidsvisningen per regatta — då publiceras bara placeringar (inga
   tidsstämplar lämnar servern) och utvecklingsdiagrammet visar placering
   per märke i stället. Man bläddrar fritt
-  mellan tidigare och kommande race. Varje pågående
-  och avslutat race har en väderruta med rådande och prognostiserat väder
-  (Open-Meteo).
+  mellan tidigare och kommande race. Varje pågående race har en väderruta
+  med rådande och prognostiserat väder (Open-Meteo); när ett race startas
+  sparas vädret i det ögonblicket, och avslutade race visar det i stället —
+  så att man i efterhand ser vad som gällde när det begav sig.
 
 ## Arkitektur
 

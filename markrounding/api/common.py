@@ -1,5 +1,6 @@
 """Row-to-dict serializers and race progress computation."""
 
+import json
 import re
 import sqlite3
 from datetime import datetime
@@ -62,6 +63,9 @@ def race_dict(conn: sqlite3.Connection, race: sqlite3.Row) -> dict:
         "course_id": race["course_id"],
         "course_name": course_name,
         "shortened": bool(race["shortened"]),
+        "start_weather": (
+            json.loads(race["start_weather"]) if race["start_weather"] else None
+        ),
         "rounding_count": count,
     }
 

@@ -66,6 +66,7 @@ export const logEventLabel = {
   boat_status: "Markering",
   boat_status_cleared: "Markering borttagen",
   rounding_undone: "Rundning ångrad",
+  weather: "Väder vid start",
   note: "Anteckning",
 };
 

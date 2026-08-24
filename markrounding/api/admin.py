@@ -156,7 +156,8 @@ def reset_race(
     conn.execute("DELETE FROM race_log WHERE race_id = ?", (race["id"],))
     conn.execute(
         "UPDATE races SET status = 'upcoming', started_at = NULL, "
-        "planned_start = NULL, general_recalls = 0, shortened = 0 WHERE id = ?",
+        "planned_start = NULL, general_recalls = 0, shortened = 0, "
+        "start_weather = NULL WHERE id = ?",
         (race["id"],),
     )
     # The fresh protocol opens with a single entry recording the reset.

@@ -8,6 +8,7 @@ import { compass, weatherLabel, windArrow } from "../format.js";
 const props = defineProps({
   weather: { type: Object, default: null },
   startedAt: { type: String, default: null },
+  title: { type: String, default: "Väder" },
 });
 
 const current = computed(() => props.weather?.current || null);
@@ -36,7 +37,7 @@ const forecast = computed(() => {
 
 <template>
   <div v-if="current" class="card">
-    <h3>Väder</h3>
+    <h3>{{ title }}</h3>
     <div class="weather">
       <span class="big">
         {{ windArrow(current.wind_direction_10m) }}
