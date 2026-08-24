@@ -62,7 +62,9 @@ def race_detail(
     ).fetchone()
     if not race:
         raise HTTPException(status_code=404, detail="Racet finns inte")
-    return common.race_progress(conn, regatta["id"], race)
+    return common.race_progress(
+        conn, regatta["id"], race, include_times=bool(regatta["show_times"])
+    )
 
 
 @router.get("/regattas/{slug}/weather")

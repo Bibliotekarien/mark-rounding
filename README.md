@@ -26,7 +26,10 @@ andra kan se hur racet utvecklas i realtid.
 - **Publiken** ser en startsida med kommande regattor på karta, och en
   regattasida där man följer aktuellt race: ställning, rundningsordning
   per märke med tidsgap till ledaren, och ett utvecklingsdiagram som visar
-  hur avstånden ökar och minskar märke för märke. Man bläddrar fritt
+  hur avstånden ökar och minskar märke för märke. Arrangören kan stänga av
+  tidsvisningen per regatta — då publiceras bara placeringar (inga
+  tidsstämplar lämnar servern) och utvecklingsdiagrammet visar placering
+  per märke i stället. Man bläddrar fritt
   mellan tidigare och kommande race. Varje pågående
   och avslutat race har en väderruta med rådande och prognostiserat väder
   (Open-Meteo).

@@ -24,6 +24,7 @@ const blankForm = () => ({
   start_date: "",
   end_date: "",
   sailarena_url: "",
+  show_times: true,
   race_count: 1,
   course_name: "Bana 1",
   marks: "Start\nKryssmärke 1\nLänsmärke\nMål",
@@ -143,6 +144,7 @@ async function openRegatta(id) {
     start_date: detail.start_date || "",
     end_date: detail.end_date || "",
     sailarena_url: detail.sailarena_url,
+    show_times: detail.show_times,
     race_count: detail.races.length,
   };
   const edits = {};
@@ -375,6 +377,16 @@ async function regenerate() {
           <div class="field"><label>Longitud</label><input type="number" step="any" v-model.number="form.lon" /></div>
         </div>
         <div class="field">
+          <label>
+            <input type="checkbox" v-model="form.show_times" />
+            Visa rundningstider för publiken
+          </label>
+          <p class="muted" style="margin: 0.2rem 0 0">
+            Avstängt visas bara placeringar — utvecklingsgrafen ritar placering
+            per märke i stället för tid efter ledaren.
+          </p>
+        </div>
+        <div class="field">
           <label>Första banans namn (fler banor läggs till efter att regattan skapats)</label>
           <input v-model="form.course_name" />
         </div>
@@ -418,6 +430,16 @@ async function regenerate() {
           <div class="field"><label>Slutdatum</label><input type="date" v-model="editForm.end_date" /></div>
           <div class="field"><label>Latitud</label><input type="number" step="any" v-model.number="editForm.lat" /></div>
           <div class="field"><label>Longitud</label><input type="number" step="any" v-model.number="editForm.lon" /></div>
+        </div>
+        <div class="field">
+          <label>
+            <input type="checkbox" v-model="editForm.show_times" />
+            Visa rundningstider för publiken
+          </label>
+          <p class="muted" style="margin: 0.2rem 0 0">
+            Avstängt visas bara placeringar — utvecklingsgrafen ritar placering
+            per märke i stället för tid efter ledaren. Kommittén ser alltid tider.
+          </p>
         </div>
         <button class="primary" @click="saveRegatta">Spara</button>
         <button class="danger" style="margin-left: 0.5rem" @click="removeRegatta">Radera regatta</button>

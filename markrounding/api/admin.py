@@ -60,8 +60,8 @@ def create_regatta(
     slug = db.unique_slug(conn, body.name)
     cur = conn.execute(
         "INSERT INTO regattas (slug, name, venue, organizer, lat, lon, start_date, "
-        "end_date, sailarena_url, report_token, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "end_date, sailarena_url, show_times, report_token, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             slug,
             body.name.strip(),
@@ -72,6 +72,7 @@ def create_regatta(
             body.start_date,
             body.end_date,
             body.sailarena_url,
+            int(body.show_times),
             db.new_report_token(),
             db.utcnow_iso(),
         ),
@@ -100,6 +101,8 @@ def patch_regatta(
     regatta_by_id(conn, regatta_id)
     fields = body.model_dump(exclude_unset=True)
     race_count = fields.pop("race_count", None)
+    if "show_times" in fields:
+        fields["show_times"] = int(fields["show_times"])
     if fields:
         assignments = ", ".join(f"{name} = ?" for name in fields)
         conn.execute(
