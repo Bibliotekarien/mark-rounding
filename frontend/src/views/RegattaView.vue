@@ -32,6 +32,11 @@ const showWeather = computed(
   () => currentRace.value && currentRace.value.status !== "upcoming"
 );
 
+// Regatta setting: publish rounding times, or placements only. With times
+// off the API sends no timestamps, so the columns would be empty anyway —
+// this just removes them and flips the chart to placement mode.
+const showTimes = computed(() => regatta.value?.show_times !== false);
+
 const boatsWithRoundings = computed(() => {
   if (!raceDetail.value) return 0;
   const ids = new Set();
@@ -153,7 +158,7 @@ watch(selectedRace, (value) => {
         <p v-if="!raceDetail.leaderboard.length" class="muted">Inga båtar ännu.</p>
         <table v-else>
           <thead>
-            <tr><th>#</th><th>Segelnr</th><th>Båt</th><th>Senaste märke</th><th>Tid</th></tr>
+            <tr><th>#</th><th>Segelnr</th><th>Båt</th><th>Senaste märke</th><th v-if="showTimes">Tid</th></tr>
           </thead>
           <tbody>
             <tr v-for="(entry, i) in raceDetail.leaderboard" :key="entry.boat.id">
@@ -170,14 +175,18 @@ watch(selectedRace, (value) => {
                 <template v-if="!entry.code">{{ entry.last_mark_name || "Ej startat/rapporterad" }}</template>
                 <template v-else-if="entry.last_mark_name"> {{ entry.last_mark_name }}</template>
               </td>
-              <td>{{ fmtTime(entry.last_ts) }}</td>
+              <td v-if="showTimes">{{ fmtTime(entry.last_ts) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
       <div class="card" v-if="boatsWithRoundings >= 2">
-        <GapChart :marks="raceDetail.marks" :leaderboard="raceDetail.leaderboard" />
+        <GapChart
+          :marks="raceDetail.marks"
+          :leaderboard="raceDetail.leaderboard"
+          :show-times="showTimes"
+        />
       </div>
 
       <div class="card" v-for="mark in raceDetail.marks" :key="mark.id">
@@ -189,8 +198,8 @@ watch(selectedRace, (value) => {
             <strong>{{ rounding.boat.sail_number }}</strong>
             <span class="muted">{{ rounding.boat.boat_name }}</span>
             <span class="spacer"></span>
-            <span v-if="rounding.position > 1" class="muted">{{ fmtGap(rounding.gap_seconds) }}</span>
-            <span class="muted">{{ fmtTime(rounding.ts) }}</span>
+            <span v-if="showTimes && rounding.position > 1" class="muted">{{ fmtGap(rounding.gap_seconds) }}</span>
+            <span v-if="showTimes" class="muted">{{ fmtTime(rounding.ts) }}</span>
           </li>
         </ul>
       </div>

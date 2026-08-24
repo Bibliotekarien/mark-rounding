@@ -17,6 +17,7 @@ def regatta_summary(row: sqlite3.Row) -> dict:
         "start_date": row["start_date"],
         "end_date": row["end_date"],
         "sailarena_url": row["sailarena_url"],
+        "show_times": bool(row["show_times"]),
     }
 
 
@@ -105,12 +106,21 @@ def regatta_detail(
     return out
 
 
-def race_progress(conn: sqlite3.Connection, regatta_id: int, race: sqlite3.Row) -> dict:
+def race_progress(
+    conn: sqlite3.Connection,
+    regatta_id: int,
+    race: sqlite3.Row,
+    include_times: bool = True,
+) -> dict:
     """Per-mark rounding order plus a leaderboard.
 
     Leaderboard ranks boats by furthest mark reached (course order), ties
     broken by who rounded that mark first. Boats without roundings follow,
     in sail number order.
+
+    include_times=False (regatta configured to publish placements only)
+    strips timestamps and gaps from the payload — the ordering they
+    produced is kept. The committee endpoints always include times.
     """
     marks = (
         list(
@@ -222,6 +232,14 @@ def race_progress(conn: sqlite3.Connection, regatta_id: int, race: sqlite3.Row) 
                 "code": code,
             }
         )
+
+    if not include_times:
+        for entries in by_mark.values():
+            for entry in entries:
+                entry["ts"] = None
+                entry["gap_seconds"] = None
+        for entry in leaderboard:
+            entry["last_ts"] = None
 
     return {
         "race": race_dict(conn, race),

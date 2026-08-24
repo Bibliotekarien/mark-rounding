@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS regattas (
     start_date TEXT,
     end_date TEXT,
     sailarena_url TEXT NOT NULL DEFAULT '',
+    show_times INTEGER NOT NULL DEFAULT 1,
     report_token TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL
 );
@@ -167,6 +168,9 @@ def init_db(conn: sqlite3.Connection) -> None:
     )
     _ensure_column(conn, "races", "course_id", "course_id INTEGER REFERENCES courses(id)")
     _ensure_column(conn, "races", "shortened", "shortened INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(
+        conn, "regattas", "show_times", "show_times INTEGER NOT NULL DEFAULT 1"
+    )
     _migrate_marks_to_courses(conn)
     conn.commit()
 

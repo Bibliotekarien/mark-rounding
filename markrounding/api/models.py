@@ -31,6 +31,7 @@ class RegattaIn(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     sailarena_url: str = ""
+    show_times: bool = True
     race_count: int = Field(default=1, ge=1, le=50)
     courses: list[CourseIn] = []
 
@@ -44,6 +45,7 @@ class RegattaPatch(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     sailarena_url: str | None = None
+    show_times: bool | None = None
     race_count: int | None = Field(default=None, ge=1, le=50)
 
 

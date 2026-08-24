@@ -2,6 +2,8 @@
 // Race development chart: time behind the leader at each mark, one line
 // per boat. Y axis is reversed so the leader (gap 0) reads on top and a
 // growing gap sinks — matching the intuition "higher = ahead".
+// Regattas configured not to publish times (show-times off) plot the
+// placement at each mark instead — same reversed axis, 1st on top.
 //
 // Colors: validated 8-slot categorical palette (dataviz skill, checked
 // against this app's dark surface #16233a). Color follows the boat, not
@@ -30,6 +32,7 @@ Chart.register(
 const props = defineProps({
   marks: { type: Array, required: true }, // race_progress marks incl. roundings
   leaderboard: { type: Array, required: true },
+  showTimes: { type: Boolean, default: true }, // false → plot placements
 });
 
 const MAX_SERIES = 8;
@@ -111,7 +114,11 @@ function buildDatasets(colors) {
     const perMark = gapByBoatAndMark.value.get(boat.id);
     return {
       label: boat.sail_number,
-      data: props.marks.map((m) => perMark?.get(m.id)?.gap_seconds ?? null),
+      data: props.marks.map((m) => {
+        const r = perMark?.get(m.id);
+        if (!r) return null;
+        return props.showTimes ? r.gap_seconds : r.position;
+      }),
       borderColor: color,
       backgroundColor: color,
       borderWidth: 2,
@@ -144,8 +151,14 @@ function render() {
       scales: {
         y: {
           reverse: true,
-          title: { display: true, text: "Tid efter ledaren", color: INK },
-          ticks: { color: INK, callback: (v) => fmtGap(Math.round(v)) },
+          title: {
+            display: true,
+            text: props.showTimes ? "Tid efter ledaren" : "Placering vid märket",
+            color: INK,
+          },
+          ticks: props.showTimes
+            ? { color: INK, callback: (v) => fmtGap(Math.round(v)) }
+            : { color: INK, stepSize: 1, precision: 0 },
           grid: { color: GRID },
           border: { color: GRID },
         },
@@ -161,7 +174,10 @@ function render() {
         },
         tooltip: {
           callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${fmtGap(ctx.parsed.y)}`,
+            label: (ctx) =>
+              props.showTimes
+                ? ` ${ctx.dataset.label}: ${fmtGap(ctx.parsed.y)}`
+                : ` ${ctx.dataset.label}: plats ${ctx.parsed.y}`,
           },
         },
       },
@@ -180,7 +196,9 @@ onMounted(() => {
   render();
   window.addEventListener("markrounding:theme", render);
 });
-watch(() => [props.marks, props.leaderboard], render, { deep: true });
+watch(() => [props.marks, props.leaderboard, props.showTimes], render, {
+  deep: true,
+});
 onBeforeUnmount(() => {
   window.removeEventListener("markrounding:theme", render);
   if (chart) chart.destroy();
@@ -190,7 +208,7 @@ onBeforeUnmount(() => {
 <template>
   <div>
     <div class="regatta-list-item">
-      <h3>Utveckling — tid efter ledaren per märke</h3>
+      <h3>{{ showTimes ? "Utveckling — tid efter ledaren per märke" : "Utveckling — placering per märke" }}</h3>
       <button @click="showTable = !showTable">
         {{ showTable ? "Visa graf" : "Visa tabell" }}
       </button>
@@ -210,8 +228,13 @@ onBeforeUnmount(() => {
           <td><strong>{{ boat.sail_number }}</strong></td>
           <td v-for="mark in marks" :key="mark.id">
             <template v-if="gapByBoatAndMark.get(boat.id)?.get(mark.id)">
-              {{ fmtGap(gapByBoatAndMark.get(boat.id).get(mark.id).gap_seconds) }}
-              <span class="muted">{{ fmtTime(gapByBoatAndMark.get(boat.id).get(mark.id).ts) }}</span>
+              <template v-if="showTimes">
+                {{ fmtGap(gapByBoatAndMark.get(boat.id).get(mark.id).gap_seconds) }}
+                <span class="muted">{{ fmtTime(gapByBoatAndMark.get(boat.id).get(mark.id).ts) }}</span>
+              </template>
+              <template v-else>
+                {{ gapByBoatAndMark.get(boat.id).get(mark.id).position }}
+              </template>
             </template>
             <span v-else class="muted">–</span>
           </td>
