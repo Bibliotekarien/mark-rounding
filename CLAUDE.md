@@ -46,7 +46,15 @@ en hemlig URL, publiken följer race och regattor. Läs `README.md`
   rundningarna vid senaste märket är målgången.
 - **Rundningar**: append + delete (ångra), aldrig update. UNIQUE
   (race, märke, båt) — dubbelklick ger 409 som UI:t hanterar tyst via
-  refresh.
+  refresh. Rapporteringsvyn spärrar båtknapparna på ett märke när ett
+  senare märke redan har rundningar — kommittén väljer uttryckligen
+  efterregistrering eller hoppar till märket där registreringen
+  naturligt fortsätter.
+- **Tidsvisning**: `regattas.show_times` (default på) styr om
+  rundningstider publiceras. Av: publika API:t strippar `ts`,
+  `gap_seconds` och `last_ts` server-side (ordningen behålls) och
+  utvecklingsgrafen visar placering per märke i stället för tid efter
+  ledaren. Kommittéendpoints skickar alltid tider.
 - **Startprocedur** (RRS 26): `planned_start` + `prep_flag`
   (P/I/Z/U/BLACK) på race; nedräkningen renderas i frontend från
   `planned_start` (servern är tidsauktoritet). Allmän återkallelse nollar

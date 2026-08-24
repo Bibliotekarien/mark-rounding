@@ -57,6 +57,48 @@ const currentRace = computed(
   () => overview.value?.races.find((r) => r.number === selectedRace.value) || null
 );
 
+// --- wrong-mark guard ---
+// Easy mistake on the water: tapping boats on an earlier mark's page while
+// the race has moved on. When a later mark already has roundings the tap
+// grid is blocked until the reporter explicitly chooses to back-register
+// here or jump to where registration naturally continues.
+const ackedMarkId = ref(null); // mark id where back-registering was confirmed
+// Races can share a course (same mark ids), so leaving the mark OR the race
+// drops the confirmation — coming back asks again.
+watch([selectedRace, selectedMarkId], () => {
+  ackedMarkId.value = null;
+});
+
+function pendingAt(mark) {
+  if (!overview.value) return [];
+  const rounded = new Set(mark.roundings.map((r) => r.boat.id));
+  return overview.value.boats.filter((b) => b.active && !rounded.has(b.id));
+}
+
+// Furthest mark (course order) with roundings — marks arrive sorted by seq.
+const latestRoundedMark = computed(() => {
+  const withRoundings = marks.value.filter((m) => m.roundings.length > 0);
+  return withRoundings[withRoundings.length - 1] || null;
+});
+
+// Where registration naturally continues: the furthest reported mark while
+// boats are still arriving there, otherwise the mark after it.
+const continueMark = computed(() => {
+  const latest = latestRoundedMark.value;
+  if (!latest) return null;
+  if (pendingAt(latest).length > 0) return latest;
+  const idx = marks.value.findIndex((m) => m.id === latest.id);
+  return marks.value[idx + 1] || null;
+});
+
+const backfillWarning = computed(
+  () =>
+    currentMark.value != null &&
+    latestRoundedMark.value != null &&
+    latestRoundedMark.value.seq > currentMark.value.seq &&
+    ackedMarkId.value !== currentMark.value.id
+);
+
 const codedBoats = computed(() =>
   (raceDetail.value?.leaderboard || []).filter((entry) => entry.code)
 );
@@ -602,7 +644,29 @@ async function shorten() {
     </p>
 
     <template v-if="currentMark">
-      <div class="card">
+      <div class="card" v-if="backfillWarning">
+        <h3>⚠ Senare märke redan rapporterat</h3>
+        <p>
+          Det finns redan rundningar vid {{ latestRoundedMark.name }}
+          (märke {{ latestRoundedMark.seq }} av {{ marks.length }}).
+          Vill du efterregistrera {{ currentMark.name }}<template v-if="continueMark">
+          eller registrera på nästa märke {{ continueMark.name }}, rundning
+          {{ continueMark.roundings.length + 1 }}</template>?
+        </p>
+        <div class="selector-row">
+          <button
+            v-if="continueMark"
+            class="primary"
+            @click="selectedMarkId = continueMark.id"
+          >
+            Registrera på {{ continueMark.name }}
+          </button>
+          <button @click="ackedMarkId = currentMark.id">
+            Efterregistrera {{ currentMark.name }}
+          </button>
+        </div>
+      </div>
+      <div class="card" v-else>
         <h3>Rundar {{ currentMark.name }} — tryck på segelnumret</h3>
         <p v-if="!pendingBoats.length" class="muted">
           Alla aktiva båtar har rundat det här märket.
