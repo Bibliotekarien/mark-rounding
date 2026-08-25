@@ -11,6 +11,9 @@ en hemlig URL, publiken följer race och regattor. Läs `README.md`
 - `uv run markrounding serve --reload` — dev-server (API + ev. byggd SPA)
 - `uv run markrounding init-db | hash-password` — CLI
 - `cd frontend && npm run dev` — Vite-dev-server (proxar `/api` till :8000)
+- `make deploy | deploy-check | deploy-logs` — prod-deploy via ssh
+  (`DEPLOY_HOST`, default `bibliotekarien-vps`); körs av användaren,
+  inte av Claude
 
 ## Regler
 
