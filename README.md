@@ -85,3 +85,14 @@ host-portar bakom plattformens edge-Caddy, service-användare `markrounding`
 PoW-gatar HTML-trafiken (`/api/*` går förbi), och Matomo-analytics sker
 server-side via Tracking HTTP API — cookie-fritt, DNT-respekterande,
 ingen tracker-JS i klienten.
+
+Löpande deploy körs från din arbetsstation:
+
+```bash
+make deploy        # git pull + build + omstart på servern
+make deploy-check  # dry-run
+make deploy-logs   # senaste loggraderna från web-containern
+```
+
+Kräver `make` och ett ssh-alias med sudo-rätt på servern (default
+`bibliotekarien-vps`, överstyr med `make deploy DEPLOY_HOST=mittalias`).

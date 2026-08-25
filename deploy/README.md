@@ -92,6 +92,17 @@ sudo systemctl enable --now markrounding.service markrounding-backup.timer
 
 ## 3. Löpande deploy
 
+Från din arbetsstation (kräver ssh-alias med sudo-rätt på servern;
+default-värd `bibliotekarien-vps`, överstyr med `DEPLOY_HOST=`):
+
+```bash
+make deploy        # git pull + build + omstart på servern
+make deploy-check  # dry-run: validera utan att applicera
+make deploy-logs   # senaste 50 raderna från web-containern
+```
+
+Eller direkt på servern:
+
 ```bash
 sudo /opt/markrounding/app/scripts/deploy.sh          # deploy
 sudo /opt/markrounding/app/scripts/deploy.sh --check  # dry-run
