@@ -15,4 +15,4 @@ deploy-check:
 	ssh -t $(DEPLOY_HOST) 'sudo $(DEPLOY_SCRIPT) --check'
 
 deploy-logs:
-	ssh -t $(DEPLOY_HOST) "sudo bash -c 'cd /opt/markrounding/app && docker compose -f docker-compose.prod.yml logs --tail=50 web'"
+	ssh -t $(DEPLOY_HOST) 'sudo $(DEPLOY_SCRIPT) --logs'

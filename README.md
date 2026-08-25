@@ -94,5 +94,7 @@ make deploy-check  # dry-run
 make deploy-logs   # senaste loggraderna från web-containern
 ```
 
-Kräver `make` och ett ssh-alias med sudo-rätt på servern (default
-`bibliotekarien-vps`, överstyr med `make deploy DEPLOY_HOST=mittalias`).
+Kräver `make` och ett ssh-alias till servern (default
+`bibliotekarien-vps`, överstyr med `make deploy DEPLOY_HOST=mittalias`)
+samt en riktad sudo-regel för just deploy-skriptet — se
+`deploy/README.md`, avsnitt 3.
