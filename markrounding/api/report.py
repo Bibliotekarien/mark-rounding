@@ -4,16 +4,21 @@ No login: knowing the token (handed out by the admin as a URL) grants
 reporting rights for that regatta only.
 """
 
+import json
 import sqlite3
+import threading
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
+from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Request
 
 from .. import db
+from .. import weather
 from . import common
 from .deps import get_conn
 from .deps import regatta_by_token
@@ -29,6 +34,67 @@ from .models import RoundingIn
 from .models import StartSequenceIn
 
 router = APIRouter(prefix="/api/report/{token}")
+
+
+def _weather_note(current: dict) -> str:
+    """One-line Swedish weather summary for the race protocol."""
+    wind = current.get("wind_speed_10m")
+    if wind is None:
+        return ""
+    note = f"Vind {round(wind)}"
+    gust = current.get("wind_gusts_10m")
+    if gust is not None:
+        note += f" ({round(gust)})"
+    note += " m/s"
+    direction = weather.compass(current.get("wind_direction_10m"))
+    if direction:
+        note += f" från {direction}"
+    temp = current.get("temperature_2m")
+    if temp is not None:
+        note += f", {round(temp)} °C"
+    return note
+
+
+def _store_start_weather(
+    db_path: Path | str, race_id: int, lat: float, lon: float
+) -> None:
+    """Fetch and persist the start-weather snapshot, and put a one-line
+    summary in the protocol. Own connection: runs on a background thread
+    after the start request has already returned."""
+    data = weather.get_weather(lat, lon)
+    current = data.get("current") or {}
+    snapshot = {"current": current, "captured_at": db.utcnow_iso()}
+    conn = db.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE races SET start_weather = ? WHERE id = ?",
+            (json.dumps(snapshot), race_id),
+        )
+        note = _weather_note(current)
+        if note:
+            db.log_event(conn, race_id, "weather", note=note)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _capture_start_weather(
+    request: Request, regatta: sqlite3.Row, race_id: int
+) -> None:
+    """Snapshot the weather at the start signal so it can be read back
+    after the race. Runs off-thread and swallows failures — a slow or
+    down Open-Meteo must never delay or fail the committee's start tap."""
+    if regatta["lat"] is None or regatta["lon"] is None:
+        return
+    db_path = request.app.state.db_path
+
+    def work() -> None:
+        try:
+            _store_start_weather(db_path, race_id, regatta["lat"], regatta["lon"])
+        except Exception:
+            pass  # the snapshot is a bonus, never worth breaking a start
+
+    threading.Thread(target=work, daemon=True).start()
 
 
 def _race(conn: sqlite3.Connection, regatta_id: int, number: int) -> sqlite3.Row:
@@ -63,6 +129,7 @@ def add_rounding(
     token: str,
     number: int,
     body: RoundingIn,
+    request: Request,
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
     regatta = regatta_by_token(conn, token)
@@ -94,6 +161,8 @@ def add_rounding(
             (db.utcnow_iso(), race["id"]),
         )
     conn.commit()
+    if race["status"] == "upcoming" and not race["started_at"]:
+        _capture_start_weather(request, regatta, race["id"])
     return {"id": cur.lastrowid}
 
 
@@ -126,6 +195,7 @@ def set_race_status(
     token: str,
     number: int,
     body: RaceStatusIn,
+    request: Request,
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> dict:
     regatta = regatta_by_token(conn, token)
@@ -146,6 +216,9 @@ def set_race_status(
         ]
         db.log_event(conn, race["id"], event)
     conn.commit()
+    # Fresh start (not a reopen of a finished race): snapshot the weather.
+    if body.status == "ongoing" and not race["started_at"]:
+        _capture_start_weather(request, regatta, race["id"])
     return common.race_dict(conn, _race(conn, regatta["id"], number))
 
 

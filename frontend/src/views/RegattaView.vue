@@ -146,8 +146,15 @@ watch(selectedRace, (value) => {
       />
     </div>
 
+    <!-- Finished races show the weather as it was at the start signal
+         (snapshotted server-side); live weather would be misleading. -->
     <WeatherBox
-      v-if="showWeather"
+      v-if="showWeather && currentRace.status === 'finished' && currentRace.start_weather"
+      :weather="currentRace.start_weather"
+      title="Väder vid start"
+    />
+    <WeatherBox
+      v-else-if="showWeather"
       :weather="weather"
       :started-at="currentRace?.started_at"
     />
