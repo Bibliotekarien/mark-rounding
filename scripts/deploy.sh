@@ -6,6 +6,7 @@
 #
 # Flaggor:
 #   --check / --dry-run   Validera utan att applicera något
+#   --logs                Visa senaste loggraderna från web-containern
 #   -h / --help           Visa denna hjälptext
 set -euo pipefail
 
@@ -13,10 +14,12 @@ APP_DIR="${APP_DIR:-/opt/markrounding/app}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 SERVICE_USER="${SERVICE_USER:-markrounding}"
 CHECK_ONLY=0
+LOGS_ONLY=0
 
 for arg in "$@"; do
   case "$arg" in
     --check|--dry-run) CHECK_ONLY=1 ;;
+    --logs) LOGS_ONLY=1 ;;
     -h|--help) sed -n '2,/^set -e/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "Okänd flagga: $arg" >&2; exit 2 ;;
   esac
@@ -39,6 +42,13 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
 fi
 
 run_as() { sudo -u "$SERVICE_USER" -H bash -c "cd '$APP_DIR' && $*"; }
+
+# --logs: bara läsa, ingen deploy. Ligger i det här skriptet så att en
+# enda sudoers-regel (utan argumentlista) täcker alla make-målen.
+if [[ $LOGS_ONLY -eq 1 ]]; then
+  run_as "docker compose -f '$COMPOSE_FILE' logs --tail 50 web"
+  exit 0
+fi
 
 echo "==> Hämtar senaste koden"
 run_as "git pull --ff-only"

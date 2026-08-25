@@ -92,8 +92,26 @@ sudo systemctl enable --now markrounding.service markrounding-backup.timer
 
 ## 3. Löpande deploy
 
-Från din arbetsstation (kräver ssh-alias med sudo-rätt på servern;
-default-värd `bibliotekarien-vps`, överstyr med `DEPLOY_HOST=`):
+Din vardagsanvändare på servern behöver inte (och bör inte ha) generell
+sudo — ge den i stället rätt att köra exakt deploy-skriptet som root.
+Engångs på servern:
+
+```bash
+sudo tee /etc/sudoers.d/markrounding-deploy <<'EOF'
+<användarnamn> ALL=(root) NOPASSWD: /opt/markrounding/app/scripts/deploy.sh
+EOF
+sudo chmod 440 /etc/sudoers.d/markrounding-deploy
+sudo visudo -c   # validera innan du loggar ut
+```
+
+Regeln anger kommandot utan argumentlista och täcker därför även
+`--check` och `--logs`. Notera att den som kontrollerar main på GitHub
+därmed i förlängningen kontrollerar servern — det var redan sant
+(deployen pullar main och service-användaren sitter i docker-gruppen),
+regeln tar bara bort lösenordsmomentet.
+
+Från din arbetsstation (kräver ssh-alias till servern; default-värd
+`bibliotekarien-vps`, överstyr med `DEPLOY_HOST=`):
 
 ```bash
 make deploy        # git pull + build + omstart på servern
