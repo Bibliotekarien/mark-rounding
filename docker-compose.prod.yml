@@ -55,9 +55,19 @@ services:
     environment:
       BIND: ":8923"
       TARGET: "http://web:8000"
-      DIFFICULTY: "${ANUBIS_DIFFICULTY:-4}"
-      SERVE_ROBOTS_TXT: "true"
-      POLICY_FNAME: /data/cfg/botPolicy.yaml
+      # Anubis egen standardpolicy (ingen POLICY_FNAME): den släpper igenom
+      # IP-verifierade sökmotorer (Googlebot, Bingbot …), nekar kända
+      # AI-skrapare och utmanar övriga webbläsare. Vår egen policy ersatte den
+      # och utmanade Googlebot som vilken webbläsare som helst (samma rättning
+      # som tOPAC #315).
+      # Ingen DIFFICULTY heller: standardpolicyns trösklar sätter sin egen
+      # (2 för en vanlig webbläsare), så variabeln skulle inte verka. Behöver
+      # den justeras: lägg till en policyfil som importerar
+      # (data)/meta/default-config.yaml OCH kopierar dess trösklar — utan
+      # trösklar utmanar Anubis varje viktad klient, dvs. det gamla beteendet.
+      # Ingen SERVE_ROBOTS_TXT: Anubis robots.txt slutar i `User-agent: *` /
+      # `Disallow: /` och stänger ute alla sökmotorer. Vår är
+      # frontend/public/robots.txt.
       OG_PASSTHROUGH: "true"
       OG_EXPIRY_TIME: 24h
       # Måste matcha det publika hostnamnet, annars accepteras inte
@@ -65,8 +75,6 @@ services:
       COOKIE_DOMAIN: ${ANUBIS_COOKIE_DOMAIN:?Sätt ANUBIS_COOKIE_DOMAIN i .env}
       METRICS_BIND: ":9090"
       CHALLENGE_TITLE: "Mark-rounding"
-    volumes:
-      - ./anubis/botPolicy.yaml:/data/cfg/botPolicy.yaml:ro
     healthcheck:
       test: ["CMD", "anubis", "--healthcheck"]
       interval: 30s
