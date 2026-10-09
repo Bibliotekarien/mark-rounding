@@ -48,7 +48,8 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
     app.include_router(admin_router)
 
     if FRONTEND_DIST.is_dir():
-        index = FRONTEND_DIST / "index.html"
+        root = FRONTEND_DIST.resolve()
+        index = root / "index.html"
 
         app.mount(
             "/assets",
@@ -57,11 +58,15 @@ def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
         )
 
         # SPA fallback: any non-API path serves index.html so vue-router
-        # can deep-link (/regatta/x, /report/y, /admin).
+        # can deep-link (/regatta/x, /report/y, /admin). Real files in dist
+        # (robots.txt, favicon) are served as themselves — but only if the
+        # resolved path stays inside dist. A `".." not in path` check is not
+        # enough: `/%2Fapp/data/markrounding.sqlite` arrives as an absolute
+        # path, and `dist / "/app/..."` discards dist entirely.
         @app.get("/{path:path}", include_in_schema=False)
         def spa(path: str) -> FileResponse:
-            candidate = FRONTEND_DIST / path
-            if path and ".." not in path and candidate.is_file():
+            candidate = (root / path).resolve()
+            if path and candidate.is_relative_to(root) and candidate.is_file():
                 return FileResponse(candidate)
             return FileResponse(index)
 
