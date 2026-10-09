@@ -25,11 +25,19 @@ _log = logging.getLogger("markrounding.matomo")
 _client: httpx.AsyncClient | None = None
 
 _REPORT_TOKEN_RE = re.compile(r"^(/report/)[^/]+")
+# Unanchored: a referrer is a full URL (https://host/report/<token>), and a
+# page opened from the committee view — reload, new tab — carries it.
+_REFERRER_TOKEN_RE = re.compile(r"(/report/)[^/?#]+")
 
 
 def sanitize_path(path: str) -> str:
     """Mask the secret committee token so it never reaches analytics."""
     return _REPORT_TOKEN_RE.sub(r"\1_token_", path)
+
+
+def sanitize_referrer(referrer: str) -> str:
+    """Same masking for the Referer header's full URL."""
+    return _REFERRER_TOKEN_RE.sub(r"\1_token_", referrer)
 
 
 def should_track(method: str, path: str, status_code: int) -> bool:
@@ -94,7 +102,7 @@ def track_request(request, status_code: int) -> None:
         url=url,
         user_agent=request.headers.get("user-agent", ""),
         lang=request.headers.get("accept-language", ""),
-        referrer=request.headers.get("referer", ""),
+        referrer=sanitize_referrer(request.headers.get("referer", "")),
         client_ip=request.client.host if request.client else "",
     )
     asyncio.get_running_loop().create_task(_send(params))

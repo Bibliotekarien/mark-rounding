@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
+from .. import accesslog
 from .. import db
 from .. import matomo
 from ..config import DEFAULT_DB_PATH
@@ -25,6 +26,7 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "di
 def create_app(db_path: Path | str = DEFAULT_DB_PATH) -> FastAPI:
     app = FastAPI(title="Mark-rounding", version="0.1.0")
     app.state.db_path = Path(db_path)
+    accesslog.install()
 
     conn = db.connect(app.state.db_path)
     try:

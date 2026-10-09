@@ -7,6 +7,19 @@ def test_sanitize_path_masks_report_token():
     assert matomo.sanitize_path("/") == "/"
 
 
+def test_sanitize_referrer_masks_report_token():
+    assert (
+        matomo.sanitize_referrer("https://markrounding.example/report/upiJEBrghzlm71gddjXqtwJO")
+        == "https://markrounding.example/report/_token_"
+    )
+    assert (
+        matomo.sanitize_referrer("https://markrounding.example/report/abc?x=1#y")
+        == "https://markrounding.example/report/_token_?x=1#y"
+    )
+    assert matomo.sanitize_referrer("https://example.org/regatta/x") == "https://example.org/regatta/x"
+    assert matomo.sanitize_referrer("") == ""
+
+
 def test_should_track_documents_only():
     assert matomo.should_track("GET", "/", 200)
     assert matomo.should_track("GET", "/regatta/varregattan", 200)
