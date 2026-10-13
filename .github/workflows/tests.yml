@@ -1,8 +1,8 @@
 name: tests
 
 # Fristående, avsiktligt. mark-rounding är ett öppet repo, och de övriga
-# Python-repona i orgen anropar i stället ett delat workflow i det privata
-# bibliotekarien-platform. Här står hela definitionen på plats, av två skäl:
+# repona i orgen anropar i stället delade workflows i det privata
+# bibliotekarien-platform. Här står hela definitionerna på plats, av två skäl:
 #
 #   1. Läsbarhet utifrån. En `uses:`-rad mot ett privat repo pekar in i något en
 #      utomstående bidragsgivare inte kan läsa. CI:n blir omöjlig att förstå
@@ -12,9 +12,13 @@ name: tests
 #      workflow därifrån läcker dess struktur, och GitHub tillåter det troligen
 #      inte alls.
 #
-# Priset är att den här filen måste hållas i synk med
-# bibliotekarien-platform/.github/workflows/python-tests.yml när den ändras.
-# Den är kanonisk; den här är kopian.
+# Priset är att den här filen innehåller två kopior som båda måste hållas i
+# synk med bibliotekarien-platform när originalen ändras:
+#
+#   - jobbet `pytest`   ← .github/workflows/python-tests.yml
+#   - jobbet `frontend` ← .github/workflows/frontend-tests.yml
+#
+# Originalen är kanoniska; jobben här är kopior.
 
 on:
   pull_request:
@@ -57,3 +61,41 @@ jobs:
 
       - name: pytest
         run: uv run --no-sync pytest -q
+
+  # Samma node och samma bygge som Dockerfilens frontend-steg, så att ett
+  # trasigt produktionsbygge syns i PR:en och inte först vid deploy (TS 7
+  # slank igenom room40 för att bara pytest kördes). Kopia av
+  # frontend-tests.yml, se filhuvudet.
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node-majoren följer Dockerfilens `FROM node:24-alpine`.
+      - name: Installera Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci failar om lockfilen inte matchar package.json — samma grind som
+      # `uv sync --locked` ovan.
+      - name: Installera beroenden exakt enligt lockfilen
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Produktionsbygget, samma kommando som i Dockerfilen.
+      - name: Bygg
+        run: npm run build
