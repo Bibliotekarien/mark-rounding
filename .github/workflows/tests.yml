@@ -1,8 +1,8 @@
 name: tests
 
 # Fristående, avsiktligt. mark-rounding är ett öppet repo, och de övriga
-# Python-repona i orgen anropar i stället ett delat workflow i det privata
-# bibliotekarien-platform. Här står hela definitionen på plats, av två skäl:
+# repona i orgen anropar i stället delade workflows i det privata
+# bibliotekarien-platform. Här står hela definitionerna på plats, av två skäl:
 #
 #   1. Läsbarhet utifrån. En `uses:`-rad mot ett privat repo pekar in i något en
 #      utomstående bidragsgivare inte kan läsa. CI:n blir omöjlig att förstå
@@ -12,9 +12,13 @@ name: tests
 #      workflow därifrån läcker dess struktur, och GitHub tillåter det troligen
 #      inte alls.
 #
-# Priset är att den här filen måste hållas i synk med
-# bibliotekarien-platform/.github/workflows/python-tests.yml när den ändras.
-# Den är kanonisk; den här är kopian.
+# Priset är att den här filen innehåller två kopior som båda måste hållas i
+# synk med bibliotekarien-platform när originalen ändras:
+#
+#   - jobbet `pytest`   ← .github/workflows/python-tests.yml
+#   - jobbet `frontend` ← .github/workflows/frontend-tests.yml
+#
+# Originalen är kanoniska; jobben här är kopior.
 
 on:
   pull_request:
@@ -61,8 +65,7 @@ jobs:
   # Samma node och samma bygge som Dockerfilens frontend-steg, så att ett
   # trasigt produktionsbygge syns i PR:en och inte först vid deploy (TS 7
   # slank igenom room40 för att bara pytest kördes). Kopia av
-  # bibliotekarien-platform/.github/workflows/frontend-tests.yml av samma
-  # skäl som pytest-jobbet ovan; håll dem i synk.
+  # frontend-tests.yml, se filhuvudet.
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15
