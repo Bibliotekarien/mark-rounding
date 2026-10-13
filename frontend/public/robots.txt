@@ -8,7 +8,8 @@
 #
 # AI training crawlers and agents are shut out. The list is copied from tOPAC's
 # frontend/public/robots.txt, which is Anubis's web/static/robots.txt at tag
-# v1.27.0 (the image we pin) — diff against it on the next Anubis upgrade — with
+# v1.28.1 (the image we pin; unchanged since v1.27.0) — diff against it on the
+# next Anubis upgrade — with
 # these changes: minus Applebot and Bravebot (the Apple and Brave search
 # engines) and facebookexternalhit (Facebook's link preview); plus CCBot (Common
 # Crawl, the largest source of AI training data). Note: Anubis's own policy LETS
