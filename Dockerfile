@@ -4,7 +4,7 @@
 # service user on bibliotekarien-vps so the named data volume gets the
 # right ownership.
 
-FROM node:22-alpine AS frontend
+FROM node:25-alpine AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
