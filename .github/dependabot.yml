@@ -7,6 +7,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    # Minor/patch updates are collected into one PR per week and ecosystem.
+    # Major versions arrive one by one and are read before merging.
+    groups:
+      uv-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /frontend
@@ -14,6 +19,14 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    # Keep @types/node from running ahead of the Node runtime (LTS 24, see the
+    # docker entry below).
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -21,18 +34,28 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
 
+  # Not grouped: image majors should show up one at a time.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    # Node follows LTS (24) on purpose. Switching major is done by hand once
+    # the next LTS is decided; digest/minor bumps still come through.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
 
   # A PR for ghcr.io/techarohq/anubis is the signal to run the Anubis checklist
   # in bibliotekarien-platform/edge/ANUBIS.md (edge CSP/blob worker, robots
   # template, policy check) in all apps at once. Do not merge a lone image
-  # bump. No ignore: every new version should produce a reminder.
+  # bump. No ignore: every new version should produce a reminder. Not grouped,
+  # so Anubis always arrives as a PR of its own.
   - package-ecosystem: docker-compose
     directory: /
     schedule:

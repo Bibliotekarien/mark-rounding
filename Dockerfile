@@ -4,14 +4,18 @@
 # service user on bibliotekarien-vps so the named data volume gets the
 # right ownership.
 
-FROM node:22-alpine AS frontend
+# Base images pinned as tag@digest (OCI index digest, multi-arch): the tag
+# says which release is meant, the digest is what gets pulled. Node follows
+# LTS (24) on purpose; Dependabot bumps the digest, a major change is manual.
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.12-slim
+# Keep the minor in sync with .python-version (CI runs the same Python).
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
