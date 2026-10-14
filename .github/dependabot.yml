@@ -46,10 +46,15 @@ updates:
     cooldown:
       default-days: 7
     # Node follows LTS (24) on purpose. Switching major is done by hand once
-    # the next LTS is decided; digest/minor bumps still come through.
+    # the next LTS is decided; digest/minor bumps still come through. The
+    # Python runtime is also switched by hand, together with .python-version —
+    # see "Python-version" in bibliotekarien-platform/.github/README.md.
+    # Patches within the same minor still arrive as a new digest.
     ignore:
       - dependency-name: node
         update-types: ["version-update:semver-major"]
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # A PR for ghcr.io/techarohq/anubis is the signal to run the Anubis checklist
   # in bibliotekarien-platform/edge/ANUBIS.md (edge CSP/blob worker, robots
