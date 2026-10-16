@@ -1,7 +1,7 @@
 <script setup>
 // MapLibre map with one marker per regatta (OSM + OpenSeaMap raster tiles,
 // same sources as gribranker's AreaMap).
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
 import { onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
