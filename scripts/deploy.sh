@@ -2,10 +2,10 @@
 # Deploy för mark-rounding på bibliotekarien-vps.
 #
 # Kör som root (eller via sudo); växlar internt till service-användaren.
-# Flöde: git pull --ff-only → docker compose build → up -d → status.
+# Flöde: git fetch → merge --ff-only → docker compose build → up -d → status.
 #
 # Flaggor:
-#   --check / --dry-run   Validera utan att applicera något
+#   --check / --dry-run   Hämta och validera, men rör inte arbetskopian
 #   --logs                Visa senaste loggraderna från web-containern
 #   -h / --help           Visa denna hjälptext
 set -euo pipefail
@@ -50,14 +50,20 @@ if [[ $LOGS_ONLY -eq 1 ]]; then
   exit 0
 fi
 
-echo "==> Hämtar senaste koden"
-run_as "git pull --ff-only"
+# Fetch och merge är skilda åt så att --check inte rör arbetskopian: en
+# dry-run som drar in ny kod lämnar disken före de körande containrarna.
+echo "==> Hämtar senaste koden (utan att röra arbetskopian)"
+run_as "git fetch --quiet"
+run_as "git --no-pager log --format='    %h  %an  %s' HEAD..'@{u}'"
 
 if [[ $CHECK_ONLY -eq 1 ]]; then
-  echo "==> Dry-run: validerar compose-konfigurationen"
+  echo "==> Dry-run: validerar compose-konfigurationen (nuvarande checkout)"
   run_as "docker compose -f '$COMPOSE_FILE' config >/dev/null && echo 'compose config OK'"
   exit 0
 fi
+
+echo "==> Uppdaterar arbetskopian (fast-forward)"
+run_as "git merge --ff-only '@{u}'"
 
 echo "==> Bygger lokala images"
 run_as "docker compose -f '$COMPOSE_FILE' build"
