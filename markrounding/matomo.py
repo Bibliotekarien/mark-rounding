@@ -24,6 +24,11 @@ _log = logging.getLogger("markrounding.matomo")
 
 _client: httpx.AsyncClient | None = None
 
+# Strong references to in-flight fire-and-forget tasks. asyncio only keeps a
+# weak reference to a bare create_task() result, so without this set a hit can
+# be garbage-collected before it is sent.
+_tasks: set[asyncio.Task] = set()
+
 _REPORT_TOKEN_RE = re.compile(r"^(/report/)[^/]+")
 # Unanchored: a referrer is a full URL (https://host/report/<token>), and a
 # page opened from the committee view — reload, new tab — carries it.
@@ -82,9 +87,15 @@ async def _send(params: dict) -> None:
     try:
         if _client is None:
             _client = httpx.AsyncClient(timeout=5.0)
-        await _client.post(f"{config.MATOMO_URL}/matomo.php", data=params)
-    except Exception as exc:  # analytics must never break the app
-        _log.debug("Matomo tracking failed: %s", exc)
+        resp = await _client.post(f"{config.MATOMO_URL}/matomo.php", data=params)
+        # A successful hit is 204 (send_image=0) or 200. Anything else means
+        # Matomo rejected it — 2026-10-26 every hit had been refused with 400
+        # (invalid token_auth) for at least three days without a trace here.
+        if resp.status_code >= 400:
+            _log.warning("Matomo rejected the hit: HTTP %s %s",
+                         resp.status_code, resp.text[:200])
+    except Exception as exc:  # analytics must never break the app, but must be visible
+        _log.warning("Matomo tracking failed: %s", exc)
 
 
 def track_request(request, status_code: int) -> None:
@@ -105,4 +116,6 @@ def track_request(request, status_code: int) -> None:
         referrer=sanitize_referrer(request.headers.get("referer", "")),
         client_ip=request.client.host if request.client else "",
     )
-    asyncio.get_running_loop().create_task(_send(params))
+    task = asyncio.get_running_loop().create_task(_send(params))
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)

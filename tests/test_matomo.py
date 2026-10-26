@@ -1,3 +1,7 @@
+import asyncio
+
+import httpx
+
 from markrounding import matomo
 
 
@@ -63,3 +67,33 @@ def test_build_params_with_token(monkeypatch):
     assert params["token_auth"] == "secret"
     assert params["cip"] == "1.2.3.4"
     assert params["urlref"] == "https://y.se"
+
+
+def _send_with(handler) -> None:
+    async def run() -> None:
+        matomo._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            await matomo._send({"idsite": "7", "token_auth": "secret"})
+        finally:
+            await matomo._client.aclose()
+            matomo._client = None
+
+    asyncio.run(run())
+
+
+def test_send_logs_rejection_as_warning(monkeypatch, caplog):
+    from markrounding import config
+
+    monkeypatch.setattr(config, "MATOMO_URL", "https://stats.example")
+    with caplog.at_level("WARNING", logger="markrounding.matomo"):
+        _send_with(lambda request: httpx.Response(400, text="requires valid token_auth"))
+    assert "HTTP 400" in caplog.text and "requires valid token_auth" in caplog.text
+
+
+def test_send_success_is_quiet(monkeypatch, caplog):
+    from markrounding import config
+
+    monkeypatch.setattr(config, "MATOMO_URL", "https://stats.example")
+    with caplog.at_level("WARNING", logger="markrounding.matomo"):
+        _send_with(lambda request: httpx.Response(204))
+    assert caplog.text == ""
