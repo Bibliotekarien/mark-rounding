@@ -1,8 +1,18 @@
 #!/bin/bash
 # Deploy för mark-rounding på bibliotekarien-vps.
 #
-# Kör som root (eller via sudo); växlar internt till service-användaren.
-# Flöde: git fetch → merge --ff-only → docker compose build → up -d → status.
+# Kör som root (eller via sudo). git och docker körs som root, och
+# arbetskopian ska vara root-ägd och bara skrivbar för root.
+# Flöde: ägarkontroll → git fetch → merge --ff-only → docker compose build
+# → up -d → status.
+#
+# Varför root och inte service-användaren: root kör filer ur arbetskopian
+# (det här skriptet, backup.sh via timern, compose-filen). Ägde markrounding
+# dem kunde den användaren skriva kod som root sedan körde. Containern kör
+# som uid 1504, samma som markrounding, så ett utbrott ur containern hade
+# gett just den användaren. Därför ska markrounding inte heller sitta i
+# docker-gruppen: den gruppen är root i praktiken (SECURITY_REVIEW.md
+# Risk 1 i bibliotekarien-platform).
 #
 # Flaggor:
 #   --check / --dry-run   Hämta och validera, men rör inte arbetskopian
@@ -12,7 +22,6 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/markrounding/app}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
-SERVICE_USER="${SERVICE_USER:-markrounding}"
 CHECK_ONLY=0
 LOGS_ONLY=0
 
@@ -30,10 +39,17 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-if ! id "$SERVICE_USER" &>/dev/null; then
-  echo "Service-användaren '$SERVICE_USER' finns inte. Skapa med:" >&2
-  echo "  useradd --system --uid 1504 --home-dir /opt/markrounding --shell /usr/sbin/nologin $SERVICE_USER" >&2
-  echo "  usermod -aG docker $SERVICE_USER" >&2
+# Vägra köra om någon annan än root kan skriva i arbetskopian. Annars kör
+# root kod som en mindre privilegierad användare har kunnat ändra.
+# Symlänkar har alltid 777 och hoppas över; det som räknas är målet.
+# `|| true`: när head slutar läsa får find SIGPIPE, och med pipefail hade
+# skriptet då dött tyst här i stället för att säga vad som är fel.
+osakra=$(find "$APP_DIR" ! -type l \( ! -user root -o -perm /022 \) -print | head -5 || true)
+if [[ -n "$osakra" ]]; then
+  echo "Arbetskopian $APP_DIR är inte root-ägd och skrivskyddad för andra, t.ex.:" >&2
+  echo "$osakra" >&2
+  echo "Rätta enligt deploy/README.md, \"Root-ägd arbetskopia\":" >&2
+  echo "  chown -R root:root $APP_DIR && chmod -R go-w $APP_DIR" >&2
   exit 1
 fi
 
@@ -41,36 +57,37 @@ if [[ ! -f "$APP_DIR/.env" ]]; then
   echo "VARNING: $APP_DIR/.env saknas — compose kommer vägra starta utan secrets." >&2
 fi
 
-run_as() { sudo -u "$SERVICE_USER" -H bash -c "cd '$APP_DIR' && $*"; }
+cd "$APP_DIR"
+compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
 
 # --logs: bara läsa, ingen deploy. Ligger i det här skriptet så att en
 # enda sudoers-regel (utan argumentlista) täcker alla make-målen.
 if [[ $LOGS_ONLY -eq 1 ]]; then
-  run_as "docker compose -f '$COMPOSE_FILE' logs --tail 50 web"
+  compose logs --tail 50 web
   exit 0
 fi
 
 # Fetch och merge är skilda åt så att --check inte rör arbetskopian: en
 # dry-run som drar in ny kod lämnar disken före de körande containrarna.
 echo "==> Hämtar senaste koden (utan att röra arbetskopian)"
-run_as "git fetch --quiet"
-run_as "git --no-pager log --format='    %h  %an  %s' HEAD..'@{u}'"
+git fetch --quiet
+git --no-pager log --format='    %h  %an  %s' 'HEAD..@{u}'
 
 if [[ $CHECK_ONLY -eq 1 ]]; then
   echo "==> Dry-run: validerar compose-konfigurationen (nuvarande checkout)"
-  run_as "docker compose -f '$COMPOSE_FILE' config >/dev/null && echo 'compose config OK'"
+  compose config >/dev/null && echo 'compose config OK'
   exit 0
 fi
 
 echo "==> Uppdaterar arbetskopian (fast-forward)"
-run_as "git merge --ff-only '@{u}'"
+git merge --ff-only '@{u}'
 
 echo "==> Bygger lokala images"
-run_as "docker compose -f '$COMPOSE_FILE' build"
+compose build
 
 echo "==> Startar om stacken"
-run_as "docker compose -f '$COMPOSE_FILE' up -d"
+compose up -d
 
-run_as "docker compose -f '$COMPOSE_FILE' ps"
-run_as "docker compose -f '$COMPOSE_FILE' logs --tail 15 web"
+compose ps
+compose logs --tail 15 web
 echo "==> Klart."
