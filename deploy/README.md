@@ -1,27 +1,31 @@
 # Driftsättning på bibliotekarien-vps
 
-Följer plattformens standardmönster (jfr gribranker). Service-användare
-`markrounding` med **UID 1504** (nästa lediga efter gribranker 1503).
+Service-användare `markrounding` med **UID 1504** (nästa lediga efter
+gribranker 1503). Containern kör som samma uid. Användaren äger ingenting
+på värden och sitter **inte** i docker-gruppen; arbetskopian är root-ägd och
+deploy.sh kör git och docker som root. Varför: se "Root-ägd arbetskopia"
+nedan.
 
 ## 1. Engångs-setup på servern
 
 ```bash
-# Service-användare. --home-dir /opt/markrounding: skrivbart HOME krävs
-# eftersom deploy.sh kör `docker compose build` via sudo -u -H (buildx
-# skapar ~/.docker).
+# Service-användare: bara för att uid 1504 ska ha ett namn på värden.
 sudo useradd --system --uid 1504 --home-dir /opt/markrounding --shell /usr/sbin/nologin markrounding
-sudo usermod -aG docker markrounding
 
 sudo mkdir -p /opt/markrounding
-sudo git clone <repo-url> /opt/markrounding/app
-sudo chown -R markrounding:markrounding /opt/markrounding
+sudo git clone https://github.com/Bibliotekarien/mark-rounding.git /opt/markrounding/app
+sudo chmod -R go-w /opt/markrounding/app
 
 # Secrets
 cd /opt/markrounding/app
-sudo -u markrounding cp .env.template .env
+sudo install -m 600 .env.template .env
 # Fyll i MARKROUNDING_SECRET (python3 -c "import secrets; print(secrets.token_hex(64))")
 # och MARKROUNDING_ADMIN_PASSWORD_HASH (uv run markrounding hash-password)
-sudo -u markrounding chmod 600 .env
+sudoedit .env
+
+# SELinux: en kopia som klonats under en hemkatalog och flyttats hit får
+# etiketten user_home_t, och då får systemd inte köra backup.sh.
+sudo restorecon -R /opt/markrounding/app
 
 # Första deploy
 sudo /opt/markrounding/app/scripts/deploy.sh
@@ -105,10 +109,53 @@ sudo visudo -c   # validera innan du loggar ut
 ```
 
 Regeln anger kommandot utan argumentlista och täcker därför även
-`--check` och `--logs`. Notera att den som kontrollerar main på GitHub
-därmed i förlängningen kontrollerar servern — det var redan sant
-(deployen pullar main och service-användaren sitter i docker-gruppen),
-regeln tar bara bort lösenordsmomentet.
+`--check` och `--logs`. Den är bara säker för att skriptet är root-ägt:
+kunde någon annan skriva i `/opt/markrounding/app` skulle regeln ge dem
+root utan lösenord. deploy.sh vägrar därför köra om arbetskopian inte är
+root-ägd. Den som kontrollerar main på GitHub kontrollerar fortfarande
+servern, eftersom deployen kör det som ligger på main.
+
+## Root-ägd arbetskopia
+
+Tidigare ägde `markrounding` arbetskopian och satt i docker-gruppen, och
+deploy.sh körde git och compose som den användaren. Två vägar till root
+följde av det:
+
+- **docker-gruppen är root.** Den som kan prata med docker-socketen kan
+  starta en container som monterar `/`. Containern kör som uid 1504, så ett
+  utbrott ur containern hade landat precis hos en användare med den rätten.
+- **root körde filer som markrounding kunde skriva:** deploy.sh (via sudo),
+  backup.sh (via `markrounding-backup.timer`, som kör som root) och
+  compose-filen.
+
+Nu är arbetskopian root-ägd, git och compose körs som root, och
+`markrounding` är bara ett namn på uid 1504. Det här är piloten för
+SECURITY_REVIEW.md Risk 1 i bibliotekarien-platform; övriga appar följer
+efter.
+
+**Flytta en befintlig server** (en gång; den nya deploy.sh vägrar köra
+innan). Ordningen spelar roll: först ägarbytet, sedan hämtas den nya koden
+som root, sedan tas gruppen bort.
+
+```bash
+sudo chown -R root:root /opt/markrounding/app
+sudo git -C /opt/markrounding/app pull --ff-only
+sudo chmod -R go-w /opt/markrounding/app
+sudo chmod 600 /opt/markrounding/app/.env
+sudo restorecon -R /opt/markrounding/app
+sudo gpasswd -d markrounding docker
+sudo cp /opt/markrounding/app/deploy/markrounding.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Kontrollera sedan:
+
+```bash
+id markrounding                                # ingen docker i grupperna
+sudo /opt/markrounding/app/scripts/deploy.sh   # går igenom ägarkontrollen
+sudo systemctl start markrounding-backup.service
+sudo journalctl -u markrounding-backup.service -n 5 --no-pager
+```
 
 Från din arbetsstation (kräver ssh-alias till servern; default-värd
 `bibliotekarien-vps`, överstyr med `DEPLOY_HOST=`):
