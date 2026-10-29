@@ -12,7 +12,7 @@ nedan.
 # Service-användare: bara för att uid 1504 ska ha ett namn på värden.
 sudo useradd --system --uid 1504 --home-dir /opt/markrounding --shell /usr/sbin/nologin markrounding
 
-sudo mkdir -p /opt/markrounding
+sudo mkdir -p /opt/markrounding    # root-ägd, 755
 sudo git clone https://github.com/Bibliotekarien/mark-rounding.git /opt/markrounding/app
 sudo chmod -R go-w /opt/markrounding/app
 
@@ -127,6 +127,9 @@ följde av det:
 - **root körde filer som markrounding kunde skriva:** deploy.sh (via sudo),
   backup.sh (via `markrounding-backup.timer`, som kör som root) och
   compose-filen.
+- **markrounding ägde `/opt/markrounding`** och kunde därmed byta ut hela
+  arbetskopian (`mv app x; mkdir app`), skript och allt. deploy.sh kontrollerar
+  därför också katalogen ovanför.
 
 Nu är arbetskopian root-ägd, git och compose körs som root, och
 `markrounding` är bara ett namn på uid 1504. Det här är piloten för
@@ -138,6 +141,8 @@ innan). Ordningen spelar roll: först ägarbytet, sedan hämtas den nya koden
 som root, sedan tas gruppen bort.
 
 ```bash
+sudo chown root:root /opt/markrounding    # inte -R: bara katalogen själv
+sudo chmod 755 /opt/markrounding
 sudo chown -R root:root /opt/markrounding/app
 sudo git -C /opt/markrounding/app pull --ff-only
 sudo chmod -R go-w /opt/markrounding/app
